@@ -1,0 +1,124 @@
+flowchart LR
+    visitor["Anonymous Visitor"]
+    buyer["Buyer"]
+    merchant["Merchant"]
+    contributor["Contributor"]
+    admin["Admin"]
+    paymentProvider["Payment Provider or Mock Gateway"]
+
+    subgraph marketplace["Multi-Tenant Digital Product Marketplace"]
+        direction TB
+
+        subgraph auth["Authentication"]
+            direction TB
+            signUp(["Sign up"])
+            signIn(["Sign in"])
+            signOut(["Sign out"])
+        end
+
+        subgraph discovery["Storefront and Discovery"]
+            direction TB
+            browseStores(["Browse active storefronts"])
+            browseProducts(["Browse published products"])
+            searchProducts(["Search and filter products"])
+            viewProduct(["View product detail"])
+            viewReviews(["View ratings and reviews"])
+        end
+
+        subgraph commerce["Cart, Checkout, and Library"]
+            direction TB
+            manageCart(["Manage cart"])
+            checkout(["Checkout"])
+            createPaymentSession(["Create payment session"])
+            handlePaymentResult(["Handle payment success, failure, or cancellation"])
+            grantAccess(["Grant product access"])
+            viewHistory(["View purchase history"])
+            viewLibrary(["View product library"])
+            submitReview(["Submit product review"])
+        end
+
+        subgraph storeOps["Merchant and Contributor Operations"]
+            direction TB
+            createStore(["Create tenant store"])
+            manageStore(["Manage own or assigned store"])
+            manageContributors(["Manage contributors and permissions"])
+            manageProducts(["Create and edit products"])
+            manageProductMedia(["Upload images and private files"])
+            publishProducts(["Publish or unpublish products"])
+            viewDashboard(["View store dashboard"])
+        end
+
+        subgraph adminOps["Admin Operations"]
+            direction TB
+            manageUsers(["Manage users"])
+            manageMerchants(["Manage merchants"])
+            manageStores(["Suspend stores"])
+            manageCategories(["Manage categories"])
+            manageVisibility(["Manage product visibility"])
+            moderateReviews(["Moderate reviews"])
+            manageConfig(["Manage marketplace configuration"])
+        end
+    end
+
+    visitor --> browseStores
+    visitor --> browseProducts
+    visitor --> searchProducts
+    visitor --> viewProduct
+    visitor --> viewReviews
+    visitor --> signUp
+    visitor --> signIn
+
+    buyer --> signIn
+    buyer --> signOut
+    buyer --> browseStores
+    buyer --> browseProducts
+    buyer --> searchProducts
+    buyer --> viewProduct
+    buyer --> manageCart
+    buyer --> checkout
+    buyer --> viewHistory
+    buyer --> viewLibrary
+    buyer --> submitReview
+
+    merchant --> signIn
+    merchant --> signOut
+    merchant --> createStore
+    merchant --> manageStore
+    merchant --> manageContributors
+    merchant --> manageProducts
+    merchant --> manageProductMedia
+    merchant --> publishProducts
+    merchant --> viewDashboard
+
+    contributor --> signIn
+    contributor --> signOut
+    contributor --> manageStore
+    contributor --> manageProducts
+    contributor --> manageProductMedia
+    contributor --> publishProducts
+    contributor --> viewDashboard
+
+    admin --> signIn
+    admin --> signOut
+    admin --> manageUsers
+    admin --> manageMerchants
+    admin --> manageStores
+    admin --> manageCategories
+    admin --> manageVisibility
+    admin --> moderateReviews
+    admin --> manageConfig
+
+    checkout -. includes .-> createPaymentSession
+    createPaymentSession --> paymentProvider
+    paymentProvider --> handlePaymentResult
+    handlePaymentResult -. includes .-> grantAccess
+    grantAccess -. enables .-> viewLibrary
+    grantAccess -. enables .-> submitReview
+
+    classDef actor fill:#ffffff,stroke:#333333,stroke-width:1.5px,color:#111111;
+    classDef useCase fill:#f8fafc,stroke:#2563eb,stroke-width:1.2px,color:#111111;
+    classDef boundary fill:#ffffff,stroke:#94a3b8,stroke-width:1px,color:#111111;
+
+    class visitor,buyer,merchant,contributor,admin,paymentProvider actor;
+    class signUp,signIn,signOut,browseStores,browseProducts,searchProducts,viewProduct,viewReviews,manageCart,checkout,createPaymentSession,handlePaymentResult,grantAccess,viewHistory,viewLibrary,submitReview,createStore,manageStore,manageContributors,manageProducts,manageProductMedia,publishProducts,viewDashboard,manageUsers,manageMerchants,manageStores,manageCategories,manageVisibility,moderateReviews,manageConfig useCase;
+    class marketplace,auth,discovery,commerce,storeOps,adminOps boundary;

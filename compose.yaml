@@ -1,0 +1,22 @@
+services:
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD:-marketplace_app_password}
+      APP_USER: ${ORACLE_USER:-marketplace_app}
+      APP_USER_PASSWORD: ${ORACLE_PASSWORD:-marketplace_app_password}
+    ports:
+      - "1521:1521"
+    volumes:
+      - ./infra/oracle/init:/container-entrypoint-initdb.d
+
+  localstack:
+    image: localstack/localstack:latest
+    environment:
+      AWS_DEFAULT_REGION: ${LOCALSTACK_REGION:-us-east-1}
+      SERVICES: cognito-idp,s3,sns,apigateway,lambda,iam,sts
+    ports:
+      - "4566:4566"
+    volumes:
+      - ./infra/localstack/init/ready.d:/etc/localstack/init/ready.d
+      - ./infra/localstack/generated:/tmp/localstack/generated

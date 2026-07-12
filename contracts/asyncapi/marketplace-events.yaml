@@ -1,0 +1,6 @@
+asyncapi: 3.0.0
+info:
+  title: marketplace Events
+  version: 0.0.1
+channels: {}
+operations: {}

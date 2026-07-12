@@ -1,0 +1,6 @@
+spring:
+  datasource:
+    url: ${MARKETPLACE_DATASOURCE_URL}
+    username: ${MARKETPLACE_DATASOURCE_USERNAME}
+    password: ${MARKETPLACE_DATASOURCE_PASSWORD}
+    driver-class-name: oracle.jdbc.OracleDriver

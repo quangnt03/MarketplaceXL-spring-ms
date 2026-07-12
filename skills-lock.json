@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "aws-diagrams": {
+      "source": "eraserlabs/eraser-io",
+      "sourceType": "github",
+      "skillPath": "skills/aws-diagrams/SKILL.md",
+      "computedHash": "29eb7b57bcaf6dcd5de0ac18c6713b5344065329e267e3f158d0c105f3bfbb65"
+    },
+    "drawio-skill": {
+      "source": "Agents365-ai/365-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/drawio/skills/drawio-skill/SKILL.md",
+      "computedHash": "bbd22cc2d3d2f90f209dbb56bc462f3fdc3515ad93580043a40d7eeaf66d3b88"
+    },
+    "eraser-diagrams": {
+      "source": "eraserlabs/eraser-io",
+      "sourceType": "github",
+      "skillPath": "skills/eraser-diagrams/SKILL.md",
+      "computedHash": "91b1d3f574d293b3ebef11a7612c55e6382c264047653be35b2773245e1d234c"
+    },
+    "excalidraw": {
+      "source": "Agents365-ai/365-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/excalidraw/skills/excalidraw-skill/SKILL.md",
+      "computedHash": "0a12ba457db429f18b636a8b769502370652e08ce7c38ab662386bb50700328c"
+    },
+    "tldraw-skill": {
+      "source": "Agents365-ai/365-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tldraw/skills/tldraw-skill/SKILL.md",
+      "computedHash": "0343201312cf9962d115c3d1069cd7e00edbe6750c10965aa32418378e543908"
+    }
+  }
+}

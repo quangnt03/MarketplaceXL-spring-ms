@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codebase Review"
+  short_description: "Systematic codebase review workflow"
+  default_prompt: "Use $codebase-review to review this repository for bugs, risks, and missing tests."

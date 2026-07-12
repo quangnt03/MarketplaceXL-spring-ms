@@ -1,0 +1,4 @@
+interface:
+  display_name: "WBS Manager"
+  short_description: "Turn feature WBS into Linear issues"
+  default_prompt: "Use $wbs-manager to break this new feature into Linear issues from scope through test cases."

@@ -1,6 +1,0 @@
-spring:
-  datasource:
-    url: jdbc:oracle:thin:@oracle:1521/FREEPDB1
-    username: ${ORACLE_USER:marketplace_app}
-    password: ${ORACLE_PASSWORD:marketplace_app_password}
-    driver-class-name: oracle.jdbc.OracleDriver

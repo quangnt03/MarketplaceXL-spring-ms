@@ -1,22 +1,64 @@
 services:
   oracle:
-    image: gvenzl/oracle-free:23-slim
+    image: gvenzl/oracle-free:latest
     environment:
-      ORACLE_PASSWORD: ${ORACLE_PASSWORD:-marketplace_app_password}
-      APP_USER: ${ORACLE_USER:-marketplace_app}
-      APP_USER_PASSWORD: ${ORACLE_PASSWORD:-marketplace_app_password}
+      - ORACLE_PASSWORD=secret
     ports:
-      - "1521:1521"
-    volumes:
-      - ./infra/oracle/init:/container-entrypoint-initdb.d
+      - "1521"
+
+  rabbitmq:
+    image: rabbitmq:latest
+    environment:
+      - RABBITMQ_DEFAULT_PASS=secret
+      - RABBITMQ_DEFAULT_USER=myuser
+    ports:
+      - "5672"
 
   localstack:
     image: localstack/localstack:latest
+    container_name: "${LOCALSTACK_DOCKER_NAME:-localstack-main}"
     environment:
       AWS_DEFAULT_REGION: ${LOCALSTACK_REGION:-us-east-1}
       SERVICES: cognito-idp,s3,sns,apigateway,lambda,iam,sts
-    ports:
-      - "4566:4566"
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-ls-qIdA6074-HIzA-4715-tEHu-tacaqUHA8b88}
+      DEBUG: ${DEBUG:-0}
     volumes:
       - ./infra/localstack/init/ready.d:/etc/localstack/init/ready.d
-      - ./infra/localstack/generated:/tmp/localstack/generated
+      # - ./infra/localstack/generated:/tmp/localstack/generated
+    ports:
+      - "127.0.0.1:4566:4566"            # LocalStack Gateway
+      - "127.0.0.1:4510-4559:4510-4559"  # external services port range
+
+  backend:
+    image: eclipse-temurin:25-jdk
+    working_dir: /workspace
+    command: ["sh", "./gradlew", "bootRun"]
+    volumes:
+      - ./backend/core:/workspace
+    environment:
+      SPRING_DOCKER_COMPOSE_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle:1521/FREEPDB1
+      SPRING_DATASOURCE_USERNAME: system
+      SPRING_DATASOURCE_PASSWORD: secret
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: myuser
+      SPRING_RABBITMQ_PASSWORD: secret
+      SERVER_PORT: 8080
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      - oracle
+      - rabbitmq
+
+  frontend:
+    build:
+      context: ./frontend/web
+    environment:
+      BACKEND_BASE_URL: http://backend:8080
+      NEXTAUTH_URL: http://localhost:${FRONTEND_PORT:-3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-local-development-secret}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend

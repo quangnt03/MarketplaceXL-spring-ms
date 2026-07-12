@@ -90,16 +90,20 @@ pnpm dev
 
 ## Local Infrastructure
 
-Copy `.env.example` to `.env`, then start local dependencies:
+Copy `.env.example` to `.env`, then start the complete local stack:
 
 ```sh
-docker compose up -d
+docker compose up --build
 ```
 
-Daily local dependencies live in `compose.yaml`:
+The frontend is available at `http://localhost:3000` and the backend at `http://localhost:8080`.
+
+Daily local services live in `compose.yaml`:
 
 - Oracle Free for persistence
 - LocalStack for AWS-like local services
+- Spring Boot marketplace backend
+- Next.js marketplace frontend
 
 Parity-only dependencies live in `compose.parity.yaml`:
 

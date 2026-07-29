@@ -2,19 +2,28 @@
 
 ## General API Rules
 
-- Use RESTful JSON APIs.
-- Use `/api/v1` prefix.
+- `contracts/openapi/marketplace-api.yaml` is the API source of truth.
+- Follow `contracts/convention/api-conventions.md`.
+- Follow the endpoint delivery workflow in `docs/md/09_api_endpoint_delivery_process.md`.
+- Use RESTful JSON APIs with plural, verb-free, unversioned resource paths.
+- Do not use `/api` or a version segment as a base path for new endpoints.
 - Require authentication for buyer, merchant, and admin actions.
-- Enforce authorization in backend services, not only frontend routes.
-- Return consistent error responses.
+- Enforce role, ownership, and tenant authorization in backend services, not only frontend routes.
+- Return RFC 9457 Problem Details as `application/problem+json`.
+
+The endpoint tables below are the initial MVP capability inventory.
+Their paths predate the project convention and are design candidates rather than an implementation contract.
+Each path MUST be normalized in the OpenAPI-first review before it is implemented.
 
 ## Error Response Format
 
 ```json
 {
-  "error": "FORBIDDEN",
-  "message": "You do not have access to this resource",
-  "details": {}
+  "type": "urn:marketplace:problem:forbidden",
+  "title": "Access denied",
+  "status": 403,
+  "detail": "You do not have access to this resource.",
+  "instance": "/problems/01J2ABCDEF"
 }
 ```
 

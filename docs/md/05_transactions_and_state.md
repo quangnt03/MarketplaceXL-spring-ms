@@ -1,265 +1,212 @@
 # Transactions and State Design
 
-## State Machines
+## Stateful entity
+1. User management
+- User (`ACTIVE/INACTIVE/SUSPENDED`)
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE
 
-### Product State
+    ACTIVE --> DEACTIVATED: Deactivate account
+    DEACTIVATED --> ACTIVE: Reactivate account
 
-```text
-DRAFT -> PUBLISHED
-PUBLISHED -> UNPUBLISHED
-UNPUBLISHED -> PUBLISHED
-PUBLISHED -> SUSPENDED
-SUSPENDED -> UNPUBLISHED
+    ACTIVE --> SUSPENDED: Suspend
+    DEACTIVATED --> SUSPENDED: Suspend
+
+    SUSPENDED --> ACTIVE: Reinstate
+    SUSPENDED --> DEACTIVATED: Reinstate as deactivated
+    SUSPENDED --> [*]
 ```
 
-Rules:
+2. Store
+- Store (`DRAFT/ACTIVE/INACTIVE/PENDING_REVIEW/SUSPENDED/CLOSED`)
 
-- Only merchant can publish or unpublish own product.
-- Only admin can suspend product.
-- Public storefront only shows PUBLISHED products from ACTIVE stores.
+```mermaid
+stateDiagram-v2
+    [*] --> DRAFT
 
-### Order State
+    DRAFT --> PENDING_REVIEW: Submit for review
+    PENDING_REVIEW --> ACTIVE: Approve
+    PENDING_REVIEW --> DRAFT: Reject
 
-```text
-PENDING -> PAID
-PENDING -> FAILED
-PENDING -> CANCELLED
-PENDING -> EXPIRED
-PAID -> REFUNDED
+    ACTIVE --> DEACTIVATED: Deactivate
+    DEACTIVATED --> ACTIVE: Reactivate
+
+    ACTIVE --> SUSPENDED: Suspend
+    DEACTIVATED --> SUSPENDED: Suspend
+    PENDING_REVIEW --> SUSPENDED: Suspend
+
+    SUSPENDED --> ACTIVE: Reinstate
+    SUSPENDED --> DEACTIVATED: Reinstate without activation
+
+    DRAFT --> CLOSED: Close
+    PENDING_REVIEW --> CLOSED: Close
+    ACTIVE --> CLOSED: Close
+    DEACTIVATED --> CLOSED: Close
+    SUSPENDED --> CLOSED: Close
+
+    CLOSED --> [*]
 ```
 
-Rules:
+- Store Membership (`ACTIVE/SUSPENDED/REMOVED`)
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE
 
-- Access is granted only after order becomes PAID.
-- FAILED, CANCELLED, and EXPIRED orders do not grant access.
+    ACTIVE --> SUSPENDED: Suspend
+    SUSPENDED --> ACTIVE: Reinstate
 
-### Payment State
+    ACTIVE --> REMOVED: Remove
+    SUSPENDED --> REMOVED: Remove
 
-```text
-PENDING -> SUCCEEDED
-PENDING -> FAILED
-PENDING -> CANCELLED
-SUCCEEDED -> REFUNDED
+    REMOVED --> [*]
 ```
 
-Rules:
+3. Tenant
 
-- Payment state changes are driven by payment provider events or mock payment events.
-- Duplicate events must not duplicate side effects.
+- Tenant (`ACTIVE/INACTIVE/SUSPENDED/CLOSED`)
 
-### Access Grant State
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE
 
-```text
-ACTIVE -> REVOKED
+    ACTIVE --> DEACTIVATED: Deactivate
+    DEACTIVATED --> ACTIVE: Reactivate
+
+    ACTIVE --> SUSPENDED: Suspend
+    DEACTIVATED --> SUSPENDED: Suspend
+
+    SUSPENDED --> ACTIVE: Reinstate
+    SUSPENDED --> DEACTIVATED: Reinstate without activation
+
+    ACTIVE --> CLOSED: Close
+    DEACTIVATED --> CLOSED: Close
+    SUSPENDED --> CLOSED: Close
+
+    CLOSED --> [*]
 ```
 
-Rules:
+- Tenant Membership (`ACTIVE/SUSPENDED/REMOVED`)
 
-- ACTIVE access grant allows file download.
-- REVOKED access grant blocks download.
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE
 
-## Transaction Boundaries
+    ACTIVE --> SUSPENDED: Suspend
+    SUSPENDED --> ACTIVE: Reinstate
 
-### Store Creation Transaction
+    ACTIVE --> REMOVED: Remove
+    SUSPENDED --> REMOVED: Remove
 
-Operations:
-
-1. Create store.
-2. Create merchant membership.
-3. Assign MERCHANT role if missing.
-4. Write audit log.
-
-Rollback if any step fails.
-
-### Product Publish Transaction
-
-Operations:
-
-1. Check merchant owns product tenant.
-2. Validate product completeness.
-3. Update product status to PUBLISHED.
-4. Invalidate cache.
-5. Write audit log.
-
-### Checkout Creation Transaction
-
-Operations:
-
-1. Load active buyer cart.
-2. Validate cart is not empty.
-3. Validate each product is published.
-4. Validate each store is active.
-5. Validate stock is available.
-6. Capture current price into order items.
-7. Create PENDING order.
-8. Create order items.
-9. Calculate subtotal.
-10. Calculate platform fee.
-11. Create PENDING payment.
-12. Mark cart as checkout started or checked out after provider session is created.
-
-Important:
-
-- Do not grant access during checkout creation.
-- Access is granted only from payment success processing.
-
-### Payment Webhook Transaction
-
-Operations:
-
-1. Verify provider signature or mock mode.
-2. Insert webhook event ID into `webhook_events`.
-3. If event already exists, return success without side effects.
-4. Load payment by provider session ID.
-5. Load order.
-6. Update payment status.
-7. Update order status.
-8. If payment succeeded, create access grants for order items.
-9. Publish async events to RabbitMQ.
-10. Write audit log.
-
-Required uniqueness:
-
-- `webhook_events(provider, event_id)` is unique.
-- `access_grants(buyer_user_id, product_id)` is unique.
-
-### Review Creation Transaction
-
-Operations:
-
-1. Check buyer has active access grant or paid order item.
-2. Check buyer has not reviewed product before.
-3. Create review.
-4. Recalculate product average rating.
-5. Recalculate product review count.
-6. Update product aggregate fields.
-7. Publish review event.
-
-Required uniqueness:
-
-- `reviews(buyer_user_id, product_id)` is unique.
-
-## Race Condition Prevention
-
-### Duplicate Checkout
-
-Risk:
-
-- Buyer submits checkout twice.
-
-Mitigation:
-
-- Check cart status.
-- Use database transaction.
-- Mark cart as checked out or checkout in progress.
-
-### Duplicate Webhook
-
-Risk:
-
-- Payment provider sends same event multiple times.
-
-Mitigation:
-
-- Unique constraint on provider event ID.
-- Return success for already processed event.
-
-### Duplicate Access Grant
-
-Risk:
-
-- Same paid order event creates duplicate product access.
-
-Mitigation:
-
-- Unique constraint on buyer and product in access grants.
-
-### Duplicate Review
-
-Risk:
-
-- Buyer submits two review requests concurrently.
-
-Mitigation:
-
-- Unique constraint on buyer and product in reviews.
-
-### Stock Race Condition
-
-Risk:
-
-- Two buyers purchase last available stock.
-
-Mitigation:
-
-- Use transactional stock validation.
-- Use conditional update where stock is greater than or equal to requested quantity.
-
-## Pseudocode
-
-### processPaymentSucceeded
-
-```text
-function processPaymentSucceeded(event):
-    verifyEvent(event)
-
-    begin transaction
-
-    if webhookEventExists(event.provider, event.eventId):
-        commit
-        return success
-
-    insertWebhookEvent(event.provider, event.eventId, event.type)
-
-    payment = findPaymentBySessionId(event.sessionId)
-    if payment is null:
-        markWebhookFailed(event)
-        commit
-        return success
-
-    order = findOrder(payment.orderId)
-
-    if order.status == PAID:
-        markWebhookProcessed(event)
-        commit
-        return success
-
-    update payment status to SUCCEEDED
-    update order status to PAID
-
-    for item in order.items:
-        create access grant if not exists
-
-    publish payment.succeeded event
-    create audit log
-    mark webhook processed
-
-    commit
-    return success
+    REMOVED --> [*]
 ```
 
-### createReview
+- TenantInvitation (`PENDING/APPROVED/REJECTED/CANCELLED/EXPIRED`)
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
 
-```text
-function createReview(buyerId, productId, rating, comment):
-    if rating < 1 or rating > 5:
-        return validation error
+    PENDING --> APPROVED: Approve
+    PENDING --> REJECTED: Reject
+    PENDING --> CANCELLED: Cancel
+    PENDING --> EXPIRED: Expire
 
-    begin transaction
+    APPROVED --> [*]
+    REJECTED --> [*]
+    CANCELLED --> [*]
+    EXPIRED --> [*]
+```
 
-    if not hasActiveAccessGrant(buyerId, productId):
-        rollback
-        return forbidden
+- TenantVerification (`PENDING/APPROVED/CANCELLED/EXPIRED`)
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> APPROVED: Approve
+    PENDING --> REJECTED: Reject
+    PENDING --> CANCELLED: Cancel
+    PENDING --> EXPIRED: Expire
+    APPROVED --> [*]
+    REJECTED --> [*]
+    CANCELLED --> [*]
+    EXPIRED --> [*]
+```
 
-    if reviewExists(buyerId, productId):
-        rollback
-        return conflict
+4. Role
+- Role (`ACTIVE/ARCHIVED`)
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE
+    ACTIVE --> ARCHIVED: Archive
+    ARCHIVED --> ACTIVE: Reactivate
+```
 
-    create review
-    recompute average rating and review count
-    update product aggregate
-    publish review.created event
+5. Product
+- Product (`ACTIVE/DISCONTINUED/ARCHIVED`)
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE
 
-    commit
-    return review
+    ACTIVE --> DISCONTINUED: Discontinue
+    DISCONTINUED --> ACTIVE: Resume selling
+
+    ACTIVE --> ARCHIVED: Archive
+    DISCONTINUED --> ARCHIVED: Archive
+
+    ARCHIVED --> [*]
+```
+
+- ProductCategory (`ACTIVE/ARCHIVED`)
+```mermaid 
+stateDiagram-v2
+    [*] --> ACTIVE
+    ACTIVE --> ARCHIVED 
+    ARCHIVED --> [*]
+```
+- ProductVersion (`DRAFT/IN_REVIEW/ACTIVE/INACTIVE/ARCHIVED/SUSPENDED`)
+```mermaid
+stateDiagram-v2
+    [*] --> DRAFT
+
+    DRAFT --> IN_REVIEW: Submit
+    IN_REVIEW --> DRAFT: Withdraw
+    IN_REVIEW --> REJECTED: Reject
+    REJECTED --> DRAFT: Revise
+
+    IN_REVIEW --> PUBLISHED: Approve and publish
+    PUBLISHED --> SUPERSEDED: Publish newer version
+
+    DRAFT --> ARCHIVED: Discard
+    REJECTED --> ARCHIVED: Archive
+    SUPERSEDED --> ARCHIVED: Archive
+
+    ARCHIVED --> [*]
+```
+
+- ProductVariant (`ACTIVE/DISCONTINUED/ARCHIVED`)
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE
+
+    ACTIVE --> DISCONTINUED: Discontinue
+    DISCONTINUED --> ACTIVE: Resume selling
+
+    ACTIVE --> ARCHIVED: Archive
+    DISCONTINUED --> ARCHIVED: Archive
+
+    ARCHIVED --> [*]
+```
+- ProductVersionPrice (`SCHEDULED/ACTIVE/EXPIRED/CANCELLED`)
+```mermaid 
+stateDiagram-v2
+    [*] --> DRAFT
+    DRAFT --> PENDING_REVIEW: Publish
+    PENDING_REVIEW --> ACTIVE: Approve
+    PENDING_REVIEW --> DRAFT: Disapprove
+    ACTIVE --> INACTIVE: Unpublish
+    ACTIVE --> INACTIVE: Expired
+    ACTIVE --> DRAFT: Modify
+    INACTIVE --> DRAFT: Modify/Republish
+    ACTIVE --> SUSPENDED: Suspend
+    PENDING_REVIEW --> SUSPENDED: Suspend
+    INACTIVE --> SUSPENDED: Suspend
 ```

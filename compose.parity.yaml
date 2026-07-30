@@ -1,14 +1,22 @@
 services:
+  oracle:
+    image: container-registry.oracle.com/database/free:latest
+    container_name: oracle-enterprise
+    ports:
+      - "1521:1521"
+      - "5500:5500"
+    env_file:
+      - .env.local
+
+  rabbitmq:
+    image: 'rabbitmq:latest'
+    env_file:
+      - backend/.env.local
+    ports:
+      - '5672'
+
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
 
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    environment:
-      RABBITMQ_DEFAULT_USER: marketplace
-      RABBITMQ_DEFAULT_PASS: marketplace
-    ports:
-      - "5672:5672"
-      - "15672:15672"

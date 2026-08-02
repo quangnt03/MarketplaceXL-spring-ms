@@ -1,4 +1,24 @@
 services:
+
+  oracle:
+    image: container-registry.oracle.com/database/free:latest
+    container_name: oracle-enterprise
+    ports:
+      - "127.0.0.1:${ORACLE_PORT:-1521}:1521"
+      - "127.0.0.1:${ORACLE_EM_PORT:-5500}:5500"
+    environment:
+      ORACLE_PWD: ${ORACLE_PWD:?Set ORACLE_PWD in the selected env file}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:?Set DATABASE_USERNAME in the selected env file}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in the selected env file}
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      - ./infra/oracle/init:/opt/oracle/scripts/startup:ro
+    healthcheck:
+      test: ["CMD", "/opt/oracle/checkDBStatus.sh"]
+      interval: 10s
+      timeout: 10s
+      retries: 60
+      start_period: 60s
   rabbitmq:
     image: rabbitmq:4-management-alpine
     environment:
@@ -22,3 +42,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+
+volumes:
+  oracle-data:

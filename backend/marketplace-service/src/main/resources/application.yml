@@ -22,6 +22,11 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        readinesss:
+          include:
+            - readinessstate
+            - db
 
   health:
     livenessstate:

@@ -1,14 +1,49 @@
-name: LocalStack Integration
+name: Integration Tests
 
 on:
+  push:
+    paths:
+      - "backend/**"
+      - "infra/**"
+      - "compose.yaml"
+      - ".github/workflows/localstack-integration.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "infra/**"
+      - "compose.yaml"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   integration:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose --env-file .env.example up -d --wait localstack
-      - run: docker compose ps
-      - if: always()
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: gradle
+
+      - name: Start integration dependencies
+        run: docker compose --env-file .env.example up -d --wait localstack
+
+      - name: Run backend integration tests
+        working-directory: backend
+        run: |
+          chmod +x gradlew
+          ./gradlew :marketplace-service:integrationTest --no-daemon
+
+      - name: Show container logs after failure
+        if: failure()
+        run: docker compose logs localstack
+
+      - name: Stop integration dependencies
+        if: always()
         run: docker compose down --volumes

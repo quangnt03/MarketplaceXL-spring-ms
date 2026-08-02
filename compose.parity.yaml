@@ -1,22 +1,24 @@
 services:
-  oracle:
-    image: container-registry.oracle.com/database/free:latest
-    container_name: oracle-enterprise
-    ports:
-      - "1521:1521"
-      - "5500:5500"
-    env_file:
-      - .env.local
-
   rabbitmq:
-    image: 'rabbitmq:latest'
-    env_file:
-      - backend/.env.local
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-marketplace}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?Set RABBITMQ_DEFAULT_PASS in the selected env file}
     ports:
-      - '5672'
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4-alpine
     ports:
-      - "6379:6379"
-
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12

@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 set -eu
-docker compose down -v
-docker compose up -d
+docker compose --env-file .env.local down -v
+docker compose --env-file .env.local up -d

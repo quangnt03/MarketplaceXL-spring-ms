@@ -1,0 +1,32 @@
+spring:
+  datasource:
+    url: "${DATABASE_URL}"
+    username: "${DATABASE_USERNAME}"
+    password: "${DATABASE_PASSWORD}"
+
+logging:
+  level:
+    root: INFO
+    "com.example.marketplace": INFO
+    "org.springframework.security": INFO
+    "org.hibernate": INFO
+    "org.hibernate.orm.jdbc.bind": "OFF"
+
+  structured:
+    format:
+      console: ecs
+
+    ecs:
+      service:
+        name: "${spring.application.name}"
+        version: "${APP_VERSION:unknown}"
+        environment: "${DEPLOYMENT_ENV:production}"
+        node-name: "${HOSTNAME:unknown}"
+
+    json:
+      stacktrace:
+        root: first
+        max-length: 32768
+        max-throwable-depth: 40
+        include-common-frames: false
+        include-hashes: true

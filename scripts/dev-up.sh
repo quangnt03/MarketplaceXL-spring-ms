@@ -1,3 +1,4 @@
 #!/usr/bin/env sh
 set -eu
-docker compose up -d
+sh ./scripts/sync-local-env.sh
+docker compose --env-file .env.local up -d --build

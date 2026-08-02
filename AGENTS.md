@@ -6,7 +6,7 @@ This repository is the source of truth for the Marketplace Platform MVP. Impleme
 
 Project-scope naming is `marketplace`, not `erp`. Use:
 
-- Maven parent artifact: `marketplace-platform`
+- Gradle root project: `marketplace-platform`
 - Backend module: `backend/marketplace-service`
 - Java base package: `com.example.marketplace`
 - Spring application class: `MarketplaceApplication`
@@ -239,7 +239,7 @@ Run the narrowest relevant tests during the red-green-refactor loop, then run
 all affected suites before declaring the feature complete. The standard entry
 points are:
 
-- Backend: Maven test/verify commands from the repository root or `backend`.
+- Backend: Gradle test/check commands through the wrapper in `backend`.
 - Frontend E2E: `npm run test:e2e` from `frontend/web`.
 - Frontend quality: the configured lint and build commands from `frontend/web`.
 - Parity/smoke: the repository Compose environment required by the feature.

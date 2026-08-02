@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${DATABASE_USERNAME:?DATABASE_USERNAME is required}"
+: "${DATABASE_PASSWORD:?DATABASE_PASSWORD is required}"
+
+if [[ ! "$DATABASE_USERNAME" =~ ^[A-Za-z][A-Za-z0-9_]{0,29}$ ]]; then
+  echo "DATABASE_USERNAME contains unsupported characters" >&2
+  exit 1
+fi
+
+if [[ ! "$DATABASE_PASSWORD" =~ ^[A-Za-z0-9_#-]{8,128}$ ]]; then
+  echo "DATABASE_PASSWORD must be 8-128 characters using letters, numbers, _, #, or -" >&2
+  exit 1
+fi
+
+sqlplus -s / as sysdba <<SQL
+WHENEVER SQLERROR EXIT SQL.SQLCODE
+ALTER SESSION SET CONTAINER = FREEPDB1;
+
+DECLARE
+  user_count INTEGER;
+BEGIN
+  SELECT COUNT(*)
+    INTO user_count
+    FROM all_users
+   WHERE username = UPPER('${DATABASE_USERNAME}');
+
+  IF user_count = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE USER ${DATABASE_USERNAME} IDENTIFIED BY "${DATABASE_PASSWORD}"';
+    EXECUTE IMMEDIATE 'GRANT CONNECT, RESOURCE TO ${DATABASE_USERNAME}';
+    EXECUTE IMMEDIATE 'ALTER USER ${DATABASE_USERNAME} QUOTA UNLIMITED ON USERS';
+  ELSE
+    EXECUTE IMMEDIATE 'ALTER USER ${DATABASE_USERNAME} IDENTIFIED BY "${DATABASE_PASSWORD}"';
+  END IF;
+END;
+/
+EXIT
+SQL

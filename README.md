@@ -12,11 +12,12 @@ marketplace-platform/
 ├── compose.yaml
 ├── compose.parity.yaml
 ├── backend/
-│   ├── pom.xml
-│   ├── mvnw
-│   ├── mvnw.cmd
+│   ├── build.gradle
+│   ├── settings.gradle
+│   ├── gradlew
+│   ├── gradlew.bat
 │   └── marketplace-service/
-│       ├── pom.xml
+│       ├── build.gradle
 │       ├── Dockerfile
 │       └── src/
 ├── frontend/
@@ -43,13 +44,13 @@ marketplace-platform/
 
 ## Backend
 
-The backend is a Maven multi-module Spring Boot workspace with one MVP service:
+The backend is a Gradle multi-project Spring Boot workspace with one deployable MVP service:
 
 - Module: `backend/marketplace-service`
 - Java package: `com.example.marketplace`
 - Application class: `MarketplaceApplication`
 
-Domain package boundaries are kept inside the service:
+Spring Modulith enforces the domain package boundaries inside the service:
 
 - `storefront`, `catalog`, `cart`, `checkout`, `orders`, `library`
 - `merchant`, `admin`, `payment`, `review`, `files`, `webhook`
@@ -60,15 +61,18 @@ Run backend tests:
 
 ```sh
 cd backend
-./mvnw -pl marketplace-service test
+./gradlew check
 ```
 
 Run the backend locally:
 
 ```sh
 cd backend
-./mvnw -pl marketplace-service spring-boot:run
+./gradlew :marketplace-service:bootRun
 ```
+
+Gradle is the only JVM build tool.
+New marketplace modules are added as top-level packages under `com.example.marketplace`, declare their dependencies in `package-info.java`, and expose cross-module contracts only through named interfaces such as `platform::api`.
 
 ## Frontend
 
@@ -90,10 +94,10 @@ pnpm dev
 
 ## Local Infrastructure
 
-Copy `.env.example` to `.env`, then start the complete local stack:
+Copy `.env.example` to `.env.local`, then start the complete local stack:
 
 ```sh
-docker compose up --build
+docker compose --env-file .env.local up --build
 ```
 
 The frontend is available at `http://localhost:3000` and the backend at `http://localhost:8080`.
@@ -113,10 +117,10 @@ Parity-only dependencies live in `compose.parity.yaml`:
 Helper scripts:
 
 ```sh
-./scripts/dev-up.sh
-./scripts/dev-status.sh
-./scripts/smoke-local.sh
-./scripts/dev-down.sh
+sh ./scripts/dev-up.sh
+sh ./scripts/dev-status.sh
+sh ./scripts/smoke-local.sh
+sh ./scripts/dev-down.sh
 ```
 
 ## Contracts
@@ -137,7 +141,7 @@ Current structure checks:
 
 ```sh
 cd backend
-./mvnw -pl marketplace-service test
+./gradlew check :marketplace-service:bootJar
 ```
 
 ```sh

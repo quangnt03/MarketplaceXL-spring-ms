@@ -8,5 +8,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t marketplace-service ./backend/marketplace-service
+      - run: docker build -f backend/marketplace-service/Dockerfile -t marketplace-service ./backend
       - run: docker build -t marketplace-web ./frontend/web

@@ -8,5 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose up -d localstack
+      - run: docker compose --env-file .env.example up -d --wait localstack
       - run: docker compose ps
+      - if: always()
+        run: docker compose down --volumes

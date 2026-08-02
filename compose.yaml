@@ -1,55 +1,71 @@
 services:
   oracle:
-    image: gvenzl/oracle-free:latest
-    environment:
-      - ORACLE_PASSWORD=secret
+    image: container-registry.oracle.com/database/free:latest
+    container_name: oracle-enterprise
     ports:
-      - "1521"
-
-  rabbitmq:
-    image: rabbitmq:latest
+      - "1521:1521"
+      - "5500:5500"
     environment:
-      - RABBITMQ_DEFAULT_PASS=secret
-      - RABBITMQ_DEFAULT_USER=myuser
-    ports:
-      - "5672"
+      ORACLE_PWD: ${ORACLE_PWD:?Set ORACLE_PWD in the selected env file}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:?Set DATABASE_USERNAME in the selected env file}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in the selected env file}
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      - ./infra/oracle/init:/opt/oracle/scripts/startup:ro
+    healthcheck:
+      test: ["CMD", "/opt/oracle/checkDBStatus.sh"]
+      interval: 10s
+      timeout: 10s
+      retries: 60
+      start_period: 60s
 
   localstack:
-    image: localstack/localstack:latest
-    container_name: "${LOCALSTACK_DOCKER_NAME:-localstack-main}"
+    image: localstack/localstack:4
     environment:
       AWS_DEFAULT_REGION: ${LOCALSTACK_REGION:-us-east-1}
-      SERVICES: cognito-idp,s3,sns,apigateway,lambda,iam,sts
-      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-ls-qIdA6074-HIzA-4715-tEHu-tacaqUHA8b88}
+      SERVICES: cognito-idp,s3,sns
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-}
       DEBUG: ${DEBUG:-0}
     volumes:
-      - ./infra/localstack/init/ready.d:/etc/localstack/init/ready.d
-      # - ./infra/localstack/generated:/tmp/localstack/generated
+      - ./infra/localstack/init/ready.d:/etc/localstack/init/ready.d:ro
+      - localstack-data:/var/lib/localstack
     ports:
-      - "127.0.0.1:4566:4566"            # LocalStack Gateway
-      - "127.0.0.1:4510-4559:4510-4559"  # external services port range
+      - "127.0.0.1:4566:4566"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:4566/_localstack/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
 
   backend:
-    image: eclipse-temurin:25-jdk
-    working_dir: /workspace
-    command: ["sh", "./gradlew", "bootRun"]
-    volumes:
-      - ./backend/core:/workspace
+    build:
+      context: ./backend
+      dockerfile: marketplace-service/Dockerfile
     environment:
+      SPRING_PROFILES_ACTIVE: dev
       SPRING_DOCKER_COMPOSE_ENABLED: "false"
-      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle:1521/FREEPDB1
-      SPRING_DATASOURCE_USERNAME: system
-      SPRING_DATASOURCE_PASSWORD: secret
-      SPRING_RABBITMQ_HOST: rabbitmq
-      SPRING_RABBITMQ_PORT: 5672
-      SPRING_RABBITMQ_USERNAME: myuser
-      SPRING_RABBITMQ_PASSWORD: secret
+      DATABASE_URL: jdbc:oracle:thin:@//oracle:1521/FREEPDB1
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-marketplace_app}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in .env}
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_REGION: ${LOCALSTACK_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
       SERVER_PORT: 8080
     ports:
-      - "${BACKEND_PORT:-8080}:8080"
+      - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
     depends_on:
-      - oracle
-      - rabbitmq
+      oracle:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
 
   frontend:
     build:
@@ -57,8 +73,19 @@ services:
     environment:
       BACKEND_BASE_URL: http://backend:8080
       NEXTAUTH_URL: http://localhost:${FRONTEND_PORT:-3000}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-local-development-secret}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?Set NEXTAUTH_SECRET in .env}
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --spider http://localhost:3000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  oracle-data:
+  localstack-data:

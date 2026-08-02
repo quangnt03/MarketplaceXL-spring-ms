@@ -6,6 +6,18 @@ on:
     branches: [main]
 
 jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify deployment baseline
+        shell: pwsh
+        run: ./scripts/verify-deployment-baseline.ps1
+      - name: Validate daily Compose configuration
+        run: docker compose --env-file .env.example config --quiet
+      - name: Validate parity Compose overlay
+        run: docker compose --env-file .env.example -f compose.yaml -f compose.parity.yaml config --quiet
+
   backend:
     runs-on: ubuntu-latest
     defaults:
@@ -17,7 +29,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-      - run: mvn -pl marketplace-service test
+          cache: gradle
+      - name: Verify Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+      - run: chmod +x gradlew
+      - run: ./gradlew check :marketplace-service:bootJar --no-daemon
 
   frontend:
     runs-on: ubuntu-latest

@@ -1,0 +1,18 @@
+spring:
+  config:
+    import: "optional:file:../../.env.local[.properties]"
+
+  datasource:
+    url: "${DATABASE_URL:jdbc:oracle:thin:@//localhost:1521/FREEPDB1}"
+    username: "${DATABASE_USERNAME}"
+    password: "${DATABASE_PASSWORD}"
+
+logging:
+  level:
+    "com.example.marketplace": DEBUG
+    "org.springframework": INFO
+    "org.hibernate": INFO
+    "org.flywaydb": INFO
+
+  pattern:
+    console: "%clr(%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}){faint} %clr(%-5level) %clr([${spring.application.name}]){cyan} %clr([%thread]){faint} %clr([flow=%X{flow_id:-none}]){magenta} %clr(%logger{40}){blue} - %msg %kvp{DOUBLE}%n%wEx"

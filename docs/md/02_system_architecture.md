@@ -10,25 +10,18 @@ flowchart TD
 
     FE --> GW[Ingress or API Gateway]
 
-    GW --> MS[marketplace-service]
-    GW --> PS[payment-service]
-    GW --> NS[notification-service]
+    GW --> MS[marketplace-service modular monolith]
 
     MS --> DB[(Oracle Database)]
-    PS --> DB
-    NS --> DB
 
     MS --> Redis[(Redis)]
-    PS --> Redis
 
     MS --> MQ[(RabbitMQ)]
-    PS --> MQ
-    MQ --> NS
 
-    MS --> Storage[(MinIO or S3)]
-    PS --> Stripe[Stripe or Payment Mock]
+    MS --> Storage[(LocalStack S3 or AWS S3)]
+    MS --> Stripe[Stripe or Payment Mock]
 
-    Stripe --> PS
+    Stripe --> MS
 ```
 
 ## Services
@@ -52,29 +45,20 @@ Responsibilities:
 - Review management
 - Admin management
 - Secure download URL generation
-
-### payment-service
-
-Service for payment operations.
-
-Responsibilities:
-
 - Payment session creation
 - Platform fee calculation
 - Payment status tracking
 - Payment webhook verification
 - Idempotent webhook processing
-- Publish payment events to RabbitMQ
-
-### notification-service
-
-Service for async notification workflows.
-
-Responsibilities:
-
+- Publish internal application events
 - Consume RabbitMQ events
 - Create in-app notifications
 - Optional email notification later
+
+The service is a Spring Modulith modular monolith.
+Each marketplace domain is a top-level application module under `com.example.marketplace`.
+Modules may depend only on explicitly published named interfaces and application events.
+The platform module exposes the `platform::api` extension contract used when adding a new module.
 
 ## Shared Infrastructure
 
@@ -83,7 +67,7 @@ Responsibilities:
 | Oracle Database | Source of truth for users, stores, products, orders, payments, reviews, and access grants. |
 | Redis | Cache public storefront, category, product detail, and rate limiting counters. |
 | RabbitMQ | AMQP-based async event delivery. |
-| MinIO or S3 | Store product images and private digital files. |
+| LocalStack S3 or AWS S3 | Store product images and private digital files. |
 | GitHub Actions | CI pipeline. |
 | Docker Compose | Local runtime. |
 | Kubernetes or Minikube | Later deployment validation. |
@@ -111,11 +95,11 @@ Events:
 
 | Event | Producer | Consumer |
 |---|---|---|
-| payment.succeeded | payment-service | marketplace-service, notification-service |
-| payment.failed | payment-service | notification-service |
-| product.published | marketplace-service | notification-service |
-| review.created | marketplace-service | notification-service |
-| order.completed | marketplace-service | notification-service |
+| payment.succeeded | payment module | orders, library, notification handlers |
+| payment.failed | payment module | orders, notification handlers |
+| product.published | catalog module | storefront, notification handlers |
+| review.created | review module | catalog |
+| order.completed | orders module | library, notification handlers |
 
 ## Tenant Isolation Strategy
 
@@ -168,11 +152,11 @@ Local MVP:
 
 ```text
 Next.js frontend
-Spring Boot services
+Spring Boot marketplace-service
 Oracle container
 Redis container
 RabbitMQ container
-MinIO container
+LocalStack S3 container
 ```
 
 Kubernetes later:
@@ -183,5 +167,5 @@ Service
 Ingress
 ConfigMap
 Secret
-PersistentVolumeClaim for local MinIO or Oracle dev only
+PersistentVolumeClaim for local object storage or Oracle development only
 ```

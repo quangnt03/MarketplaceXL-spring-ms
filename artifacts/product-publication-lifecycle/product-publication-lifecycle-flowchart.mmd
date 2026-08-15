@@ -1,0 +1,93 @@
+flowchart TD
+    START([Merchant starts product setup])
+
+    subgraph Drafting[Create the draft product graph]
+        CREATE_PRODUCT[Create stable Product identity for Store]
+        PRODUCT_RESULT[Product has no publication state and no current published version]
+        CREATE_VERSION[Create first ProductVersion in DRAFT]
+        EDIT_CONTENT[Set name, description, category, and media references]
+        CREATE_VARIANTS[Create stable ProductVariant identities]
+        CREATE_OFFERS[Create DRAFT ProductVariantVersions with SKU, display name, and Money price]
+        OWNERSHIP{"Do all entities belong to the same Product and ProductVersion?"}
+        OWNERSHIP_ERROR[Throw OwnershipMismatchException and reject the association]
+    end
+
+    subgraph Stocking[Initialize lifecycle-independent inventory]
+        CREATE_INVENTORY[Initialize one Inventory record per stable ProductVariant]
+        INVENTORY_VALID{"Is quantity non-negative and is this the first Inventory record?"}
+        INVENTORY_ERROR[Reject negative quantity or throw DuplicateInventoryException]
+        INVENTORY_OK[Inventory is stored without changing publication state]
+    end
+
+    subgraph Submission[Submit the complete version for review]
+        SUBMIT[Merchant requests submitForReview]
+        DRAFT_STATE{"Is ProductVersion in DRAFT?"}
+        SUBMIT_STATE_ERROR[Throw IllegalLifecycleTransitionException]
+        READINESS{"Is the version ready?<br>Name, description, and category present<br>At least one active variant offer<br>Every included SKU non-blank and unique<br>Every included Money price strictly positive"}
+        READINESS_ERROR[Throw ProductReadinessException with a stable reason code]
+        PREFLIGHT_SUBMIT[Validate the full aggregate before mutation]
+        IN_REVIEW[Move ProductVersion and all included eligible offers to IN_REVIEW]
+    end
+
+    subgraph Publication[Publish the first product version]
+        PUBLISH[Merchant requests publish]
+        OWNERSHIP_RECHECK{"Do Product, version, variants, and offers have matching ownership?"}
+        PUBLICATION_STATE{"Are ProductVersion and every included offer in IN_REVIEW?"}
+        PUBLISH_ERROR[Throw ownership or illegal-transition exception]
+        PREFLIGHT_PUBLISH[Complete all publication checks before mutation]
+        PUBLISH_CHILDREN[Move all included offers to PUBLISHED]
+        PUBLISH_VERSION[Move ProductVersion to PUBLISHED]
+        SET_POINTER[Set Product.currentPublishedVersionId to the published version ID]
+        COMPLETE([First complete product version is published])
+    end
+
+    UNCHANGED[Leave every lifecycle state and publication pointer unchanged]
+
+    START --> CREATE_PRODUCT
+    CREATE_PRODUCT --> PRODUCT_RESULT
+    PRODUCT_RESULT --> CREATE_VERSION
+    CREATE_VERSION --> EDIT_CONTENT
+    EDIT_CONTENT --> CREATE_VARIANTS
+    CREATE_VARIANTS --> CREATE_OFFERS
+    CREATE_OFFERS --> OWNERSHIP
+    OWNERSHIP -- No --> OWNERSHIP_ERROR
+    OWNERSHIP_ERROR --> UNCHANGED
+    OWNERSHIP -- Yes --> CREATE_INVENTORY
+    CREATE_INVENTORY --> INVENTORY_VALID
+    INVENTORY_VALID -- No --> INVENTORY_ERROR
+    INVENTORY_ERROR --> UNCHANGED
+    INVENTORY_VALID -- Yes --> INVENTORY_OK
+    INVENTORY_OK --> SUBMIT
+    SUBMIT --> DRAFT_STATE
+    DRAFT_STATE -- No --> SUBMIT_STATE_ERROR
+    SUBMIT_STATE_ERROR --> UNCHANGED
+    DRAFT_STATE -- Yes --> READINESS
+    READINESS -- No --> READINESS_ERROR
+    READINESS_ERROR --> UNCHANGED
+    READINESS -- Yes --> PREFLIGHT_SUBMIT
+    PREFLIGHT_SUBMIT --> IN_REVIEW
+    IN_REVIEW --> PUBLISH
+    PUBLISH --> OWNERSHIP_RECHECK
+    OWNERSHIP_RECHECK -- No --> PUBLISH_ERROR
+    OWNERSHIP_RECHECK -- Yes --> PUBLICATION_STATE
+    PUBLICATION_STATE -- No --> PUBLISH_ERROR
+    PUBLISH_ERROR --> UNCHANGED
+    PUBLICATION_STATE -- Yes --> PREFLIGHT_PUBLISH
+    PREFLIGHT_PUBLISH --> PUBLISH_CHILDREN
+    PUBLISH_CHILDREN --> PUBLISH_VERSION
+    PUBLISH_VERSION --> SET_POINTER
+    SET_POINTER --> COMPLETE
+
+    classDef startEnd fill:#d5e8d4,stroke:#82b366,color:#000000
+    classDef operation fill:#dae8fc,stroke:#6c8ebf,color:#000000
+    classDef decision fill:#fff2cc,stroke:#d6b656,color:#000000
+    classDef error fill:#f8cecc,stroke:#b85450,color:#000000
+    classDef success fill:#d5e8d4,stroke:#82b366,color:#000000
+    classDef guard fill:#e1d5e7,stroke:#9673a6,color:#000000
+
+    class START,COMPLETE startEnd
+    class CREATE_PRODUCT,PRODUCT_RESULT,CREATE_VERSION,EDIT_CONTENT,CREATE_VARIANTS,CREATE_OFFERS,CREATE_INVENTORY,INVENTORY_OK,SUBMIT,PUBLISH operation
+    class OWNERSHIP,INVENTORY_VALID,DRAFT_STATE,READINESS,OWNERSHIP_RECHECK,PUBLICATION_STATE decision
+    class OWNERSHIP_ERROR,INVENTORY_ERROR,SUBMIT_STATE_ERROR,READINESS_ERROR,PUBLISH_ERROR,UNCHANGED error
+    class IN_REVIEW,PUBLISH_CHILDREN,PUBLISH_VERSION,SET_POINTER success
+    class PREFLIGHT_SUBMIT,PREFLIGHT_PUBLISH guard

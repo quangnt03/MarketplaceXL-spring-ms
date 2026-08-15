@@ -1,0 +1,70 @@
+sequenceDiagram
+    autonumber
+    actor Merchant
+    participant Product
+    participant Version as ProductVersion
+    participant Variant as ProductVariant
+    participant Offer as ProductVariantVersion
+    participant Inventory
+
+    Merchant->>Product: Create product identity for Store
+    Product-->>Merchant: Product created with no current published version
+    Merchant->>Version: Create first version for Product
+    Version-->>Merchant: Version created in DRAFT
+    Merchant->>Version: Set name, description, category, and media references
+
+    loop For each sellable variation
+        Merchant->>Variant: Create stable variant identity under Product
+        Merchant->>Offer: Create DRAFT offer for Variant and Version
+        Offer->>Offer: Record SKU, display name, and Money price
+        alt Ownership identifiers do not match
+            Offer-->>Merchant: Throw OwnershipMismatchException
+            Note over Product,Offer: Reject association without lifecycle mutation
+        else Ownership identifiers match
+            Merchant->>Variant: Initialize inventory with non-negative quantity
+            alt Inventory already exists or quantity is negative
+                Variant-->>Merchant: Reject inventory initialization
+                Note over Variant,Inventory: Publication state remains unchanged
+            else Inventory invariant passes
+                Variant->>Inventory: Create the one Inventory record
+                Inventory-->>Merchant: Inventory initialized independently
+            end
+        end
+    end
+
+    Merchant->>Version: submitForReview(active variants, offers)
+    Version->>Version: Verify source state is DRAFT
+    alt Version is not DRAFT
+        Version-->>Merchant: Throw IllegalLifecycleTransitionException
+        Note over Version,Offer: Parent and children remain unchanged
+    else Version is DRAFT
+        Version->>Version: Validate name, description, and category
+        Version->>Offer: Validate ownership and at least one active offer
+        Offer->>Offer: Validate non-blank unique SKUs and positive Money prices
+        alt Any readiness rule fails
+            Offer-->>Version: Return stable readiness failure reason
+            Version-->>Merchant: Throw ProductReadinessException
+            %% Note over Version,Offer: Full preflight prevents partial transition; all remain DRAFT
+        else Full aggregate is ready
+            Offer-->>Version: Readiness preflight succeeds
+            Version->>Offer: Move every included eligible offer to IN_REVIEW
+            Version->>Version: Move ProductVersion to IN_REVIEW
+            Version-->>Merchant: Submission accepted
+        end
+    end
+
+    Merchant->>Product: publish(version, offers)
+    Product->>Version: Verify version ownership and IN_REVIEW state
+    Version->>Offer: Preflight ownership and IN_REVIEW state for every included offer
+    alt Ownership or lifecycle validation fails
+        Offer-->>Version: Return validation failure
+        Version-->>Product: Abort publication
+        Product-->>Merchant: Throw domain exception
+        Note over Product,Offer: Version, offers, and currentPublishedVersionId remain unchanged
+    else Every publication precondition succeeds
+        Offer-->>Version: Publication preflight succeeds
+        Version->>Offer: Move all included offers to PUBLISHED
+        Product->>Version: Move ProductVersion to PUBLISHED
+        Product->>Product: Set currentPublishedVersionId
+        Product-->>Merchant: First complete version published
+    end

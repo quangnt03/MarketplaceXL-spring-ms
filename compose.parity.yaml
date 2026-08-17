@@ -1,15 +1,16 @@
 services:
-
   oracle:
     image: container-registry.oracle.com/database/free:latest
     container_name: oracle-enterprise
     ports:
       - "127.0.0.1:${ORACLE_PORT:-1521}:1521"
       - "127.0.0.1:${ORACLE_EM_PORT:-5500}:5500"
-    environment:
-      ORACLE_PWD: ${ORACLE_PWD:?Set ORACLE_PWD in the selected env file}
-      DATABASE_USERNAME: ${DATABASE_USERNAME:?Set DATABASE_USERNAME in the selected env file}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in the selected env file}
+    # environment:
+    #   ORACLE_PWD: ${ORACLE_PWD:?Set ORACLE_PWD in the selected env file}
+    #   DATABASE_USERNAME: ${DATABASE_USERNAME:?Set DATABASE_USERNAME in the selected env file}
+    #   DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in the selected env file}
+    env_file:
+      - .env.local
     volumes:
       - oracle-data:/opt/oracle/oradata
       - ./infra/oracle/init:/opt/oracle/scripts/startup:ro
@@ -21,9 +22,11 @@ services:
       start_period: 60s
   rabbitmq:
     image: rabbitmq:4-management-alpine
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-marketplace}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?Set RABBITMQ_DEFAULT_PASS in the selected env file}
+    # environment:
+    #   RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-marketplace}
+    #   RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?Set RABBITMQ_DEFAULT_PASS in the selected env file}
+    env_file:
+      - .env.local
     ports:
       - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
       - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
@@ -35,6 +38,9 @@ services:
 
   redis:
     image: redis:7.4-alpine
+    env_file:
+      - .env.local
+
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     healthcheck:

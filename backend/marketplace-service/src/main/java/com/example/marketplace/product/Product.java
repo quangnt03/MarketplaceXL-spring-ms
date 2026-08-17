@@ -16,6 +16,7 @@ public final class Product {
     public static Product create(UUID productId, UUID storeId, String productCode) {
         Product newProduct = new Product(productId, storeId, productCode);
         newProduct.setStatus(EProductStatus.ACTIVE);
+        newProduct.setPublishedVersionId(null);
         return newProduct;
     }
 
@@ -102,7 +103,7 @@ public final class Product {
         return status;
     }
 
-    
+
     private void setStatus(EProductStatus status) {
         this.status = status;
     }

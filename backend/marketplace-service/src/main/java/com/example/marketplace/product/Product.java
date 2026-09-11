@@ -1,70 +1,120 @@
 package com.example.marketplace.product;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import com.example.marketplace.shared.exception.InvalidStateTransitionException;
+import com.example.marketplace.product_variant_version.EProductVariantVersionStatus;
+import com.example.marketplace.shared.exception.IllegalLifecycleTransitionException;
+import com.example.marketplace.shared.exception.InvalidStatusOperationException;
+import com.example.marketplace.shared.exception.OwnershipMismatchException;
+import com.example.marketplace.product_variant_version.ProductVariantVersion;
+import com.example.marketplace.product_version.ProductVersion;
+import com.example.marketplace.shared.state_management.LifecycleStateMachine;
 
 public final class Product {
     private UUID id;
     private UUID storeId;
     private String productName;
     private String productCode;
-    private EProductStatus status;
+    private LifecycleStateMachine<EProductStatus> status;
     private UUID currentPublishedVersionId;
 
     public static Product create(UUID productId, UUID storeId, String productCode) {
-        Product newProduct = new Product(productId, storeId, productCode);
-        newProduct.setStatus(EProductStatus.ACTIVE);
-        newProduct.setPublishedVersionId(null);
-        return newProduct;
+        return new Product(
+            productId,
+            storeId,
+            productCode
+        );
     }
 
     private Product(UUID id, UUID storeId, String productCode) {
         this.setId(id);
-        // this.setProductName(productName);
+        this.status = new LifecycleStateMachine<EProductStatus>(
+            "product", id, EProductStatus.ACTIVE
+        );
+        this.setPublishedVersionId(null);
         this.setStoreId(storeId);
         this.setProductCode(productCode);
     }
 
     public EProductStatus discontinue() {
-        return transitionState(
+        return this.status.transitionState(
             EProductStatus.DISCONTINUED,
             Set.of(EProductStatus.ACTIVE)
         );
     }
 
     public EProductStatus resumeSelling() {
-        return transitionState(
+        return this.status.transitionState(
             EProductStatus.ACTIVE,
             Set.of(EProductStatus.DISCONTINUED)
         );
     }
 
     public EProductStatus archive() {
-        return transitionState(
+        return this.status.transitionState(
             EProductStatus.ARCHIVED,
             Set.of(EProductStatus.ACTIVE, EProductStatus.DISCONTINUED)
         );
     }
 
-    private EProductStatus transitionState(EProductStatus targetState, Set<EProductStatus> allowedCurrentState) {
-        EProductStatus currentState = this.getStatus();
-        if (currentState == targetState) {
-            return currentState;
+    public void publish(ProductVersion version, List<ProductVariantVersion> offers) {
+        if (offers.isEmpty()) {
+            // if offer is null, create a pseudo id instead
+            Object pseudoChildIdObj = new Object();
+            throw new OwnershipMismatchException(
+                "product_variant_version",
+                pseudoChildIdObj,
+                "product_version",
+                version.getId().toString(),
+                version.getId().toString()
+            );
         }
-        else if (allowedCurrentState.contains(targetState)) {
-            this.setStatus(targetState);
-            return targetState;
-        }
-        else {
-            throw new InvalidStateTransitionException(
+
+        if (this.getStatus() != EProductStatus.ACTIVE) {
+            throw new InvalidStatusOperationException(
                 "product",
                 this.getId(),
                 this.getStatus(),
-                targetState.toString()
+                "product_publish"
             );
         }
+
+        if (!version.getProductId().equals(this.getId())) {
+            throw new OwnershipMismatchException(
+                "product_version",
+                version.getId(),
+                "product",
+                this.getId(),
+                version.getProductId()
+            );
+        }
+
+        offers.forEach(variantVersion -> {
+            if (!variantVersion.getProductVersionId().equals(version.getId())) {
+                throw new OwnershipMismatchException(
+                    "product_variant_version",
+                    variantVersion.getId(),
+                    "product_version",
+                    version.getId(),
+                    variantVersion.getProductVersionId()
+                );
+            }
+            if (variantVersion.getPublicationStatus() != EProductVariantVersionStatus.IN_REVIEW) {
+                throw new IllegalLifecycleTransitionException(
+                    "product_variant_version",
+                    variantVersion.getId(),
+                    variantVersion.getPublicationStatus(),
+                    "PUBLISHED"
+                );
+            }
+        });
+
+        offers.forEach(ProductVariantVersion::approveReview);
+        version.approvePublish();
+        setPublishedVersionId(version.getId());
     }
 
     public void setId(UUID id) {
@@ -100,12 +150,7 @@ public final class Product {
     }
 
     public EProductStatus getStatus() {
-        return status;
-    }
-
-
-    private void setStatus(EProductStatus status) {
-        this.status = status;
+        return status.getState();
     }
 
     public UUID getCurrentPublishedVersionId() {
@@ -115,4 +160,5 @@ public final class Product {
     public void setPublishedVersionId(UUID versionId) {
         this.currentPublishedVersionId = versionId;
     }
+
 }

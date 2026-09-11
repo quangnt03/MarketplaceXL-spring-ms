@@ -1,9 +1,8 @@
 package com.example.marketplace.shared.state_management;
 
-import java.util.List;
+import java.util.Set;
 
-public interface IState<T> {
+public interface IStateMachine<T> {
     T getState();
-    T setState();
-    T transitionState(T targetState, List<T> allowedCurrentState);
+    T transitionState(T targetState, Set<T> allowedCurrentState);
 }

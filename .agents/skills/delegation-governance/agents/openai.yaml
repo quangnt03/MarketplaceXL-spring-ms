@@ -1,0 +1,7 @@
+interface:
+  display_name: "Delegation Governance"
+  short_description: "Preserve human ownership of critical decisions"
+  default_prompt: "Use $delegation-governance to classify this task, enforce decision boundaries, and define the required human review."
+
+policy:
+  allow_implicit_invocation: false

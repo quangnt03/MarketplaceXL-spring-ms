@@ -15,6 +15,38 @@ Project-scope naming is `marketplace`, not `erp`. Use:
 
 Do not rename the project, packages, modules, or docs back to ERP naming.
 
+## Agent Role and Scope
+
+This is a learning project. Maximizing the user's learning value takes priority over
+implementation speed, and it overrides the general Delegation Tiers below wherever the
+two disagree.
+
+1. An agent's direct-implementation responsibility is limited to: bootstrapping
+   boilerplate, boring templates (DTOs, mappers, getters/setters, routine config),
+   writing tests as explicitly instructed, summarizing logs and command output, and
+   writing supporting scripts or CLI tooling.
+2. An agent must never directly implement a crucial business logic path, a core
+   service, a CI/CD gate, or infrastructure, even Tier 2 items normally allowed by the
+   Delegation Tiers below and even if explicitly asked in the moment. Instead, an agent
+   suggests an approach, verifies and reviews the user's own implementation, writes
+   tests against it, and actively challenges the design when something looks wrong or
+   risky. If asked to implement one of these directly, say so and offer the
+   suggest/verify/test/challenge alternative instead.
+3. The user's own implementations and design decisions in this repository are the
+   reference for best practice. Read the user's code and prior decisions before writing
+   anything adjacent to them, follow the patterns already established (for example the
+   state-transition pattern on `Product`/`ProductVersion`/`ProductVariant`/
+   `ProductVariantVersion`, and the Spring Modulith module boundaries), and carry that
+   style forward into other projects rather than introducing new idioms of the agent's
+   own.
+4. Keep this repository usable by any AI coding agent, not only Claude Code.
+   `AGENTS.md` is the single canonical, tool-agnostic instructions file. Tool-specific
+   filenames (`CLAUDE.md`, `GEMINI.md`, and similar) must stay symlinks to `AGENTS.md`
+   rather than forks with drifting content. Prefer scripts, configuration, and
+   documentation that any agent or a human can run directly over features that depend
+   on one vendor's proprietary agent tooling, unless the user explicitly asks for a
+   vendor-specific integration.
+
 ## General Coding Principles
 
 1. Never use the em dash character (Unicode `U+2014`).
@@ -31,6 +63,60 @@ Do not rename the project, packages, modules, or docs back to ERP naming.
    If something clearly looks wrong, fix it when it is within the task's authorized scope, even if it is not directly related to the current change.
 8. Apply the same high standard to engineering quality, including lint errors, test failures, and flaky tests.
    Fix issues found within the task's authorized scope even when the current change did not cause them, and report out-of-scope issues clearly.
+
+## Delegation and Human Ownership
+
+Use agents to remove typing, repetition, translation between representations, scaffolding, and mechanical refactoring.
+Keep requirements, tradeoffs, architecture, invariants, failure analysis, debugging judgment, and final technical judgment under human ownership.
+
+### Delegation Tiers
+
+1. Tier 1 is human-owned decision work.
+   This includes requirements and acceptance criteria, domain and aggregate boundaries, state transitions, transaction and concurrency design, API and event contracts, database ownership, security and tenant-isolation models, technology choices, deployment topology, infrastructure architecture, test strategy, failure and retry semantics, and root-cause conclusions.
+   An agent may gather evidence, critique a design, identify failure modes, and present options with tradeoffs.
+   An agent must not choose or change a Tier 1 decision unless the user explicitly instructs it or an approved project artifact already records the decision.
+2. Tier 2 is shared implementation work.
+   This includes core feature logic, business services, repository queries, caching behavior, integration tests, the first meaningful implementation of an important concept, and implementation of an approved infrastructure or delivery design.
+   An agent may scaffold, review, and implement bounded Tier 2 work after the relevant Tier 1 decisions and invariants are fixed.
+   Preserve a user-designated learning or manual zone, and do not take over its first meaningful implementation unless the user explicitly delegates it.
+   In this repository, "Agent Role and Scope" above narrows this further: core feature logic, business services, and core services stay user-implemented; an agent's role on those items is scaffolding, review, tests, and challenge, not direct implementation, regardless of delegation otherwise.
+3. Tier 3 is delegatable mechanical work.
+   This includes DTOs, mappers, repetitive repository methods, controller scaffolding, validation annotations, exception-response boilerplate, test fixtures, repetitive test setup, routine configuration, documentation drafts, import and package updates, and mechanical refactoring.
+   An agent may implement Tier 3 work end to end, but must still inspect the surrounding context, validate the result, and flag anything that needs human review.
+
+### Delegation Gates
+
+1. Classify each requested work item by tier before implementation.
+   The classification may remain implicit when every item is clearly Tier 3.
+2. Treat explicit user instructions and approved specifications, contracts, architecture decision records, and diagrams as established decisions.
+3. If a required Tier 1 decision is unresolved, pause only the affected work, present focused options and a recommendation, and request the decision.
+   Continue independent in-scope work that does not depend on that decision.
+4. Do not silently change:
+   - aggregate, domain, module, or service boundaries
+   - database schema ownership or persistence technology
+   - public API contracts or event schemas
+   - transaction, concurrency, idempotency, failure, or retry semantics
+   - authentication, authorization, tenant isolation, secrets, or trust boundaries
+   - deployment topology, infrastructure architecture, or technology choices
+5. For important or high-risk work, use the sequence: human or approved-artifact design, agent critique, bounded implementation, automated validation, agent review, and human final judgment.
+6. For debugging, reproduce the user-visible failure and collect evidence before proposing a cause.
+   An explicit request to fix the bug authorizes a bounded implementation, but the handoff must explain the evidence, root cause, and why the fix addresses it.
+7. Never leave the repository with code that the handoff cannot explain or with complexity that is unnecessary for the approved design.
+
+### Required Delegation Handoff
+
+After making changes, report the following concisely:
+
+1. Files changed
+2. Behavior changed
+3. Assumptions made
+4. Architectural decisions used or proposed
+5. Tests added and validation run
+6. Risks and unverified items
+7. Items requiring human review
+
+The user may opt into the repository skill `$delegation-governance` for an explicit delegation plan, decision audit, manual-zone boundary, or risk-based review contract.
+When invoked, follow it in addition to these always-on rules.
 
 ## Architecture Rules
 
@@ -262,3 +348,183 @@ A feature is done only when:
 5. Frontend can call the API if the feature is user-facing.
 6. Error cases are handled.
 7. No out-of-scope feature was added.
+
+## Development Commands
+
+### Backend (Gradle, run from `backend/`)
+
+- `./gradlew check` - full verification: tests plus the Spring Modulith module-boundary check. This is what CI runs (as `./gradlew check :marketplace-service:bootJar`).
+- `./gradlew test` - unit/integration tests only.
+- `./gradlew test --tests "com.example.marketplace.product.ProductPublicationLifecycleTest"` - run a single test class.
+- `./gradlew test --tests "com.example.marketplace.product.ProductPublicationLifecycleTest.methodName"` - run a single test method.
+- `./gradlew :marketplace-service:bootRun` - run the service locally.
+- `./gradlew :marketplace-service:bootJar` - build the runnable jar.
+- Java 25 is required; the Gradle toolchain (`backend/build.gradle`) enforces this automatically. Gradle is the only JVM build tool, do not introduce Maven.
+
+### Frontend (pnpm, run from `frontend/web/`)
+
+- `pnpm install` - install dependencies.
+- `pnpm dev` - dev server.
+- `pnpm build` - production build.
+- `pnpm lint` - `next lint`.
+- `pnpm test:e2e` - Playwright end-to-end tests (config/specs under `frontend/web/e2e`).
+- CI (`.github/workflows/ci.yml`) also runs `pnpm test:unit`, but no such script exists yet in `frontend/web/package.json`; add it when frontend unit tests are introduced rather than assuming it already works.
+
+### Local infrastructure
+
+- Copy `.env.example` to `.env.local`, then `docker compose --env-file .env.local up --build` (frontend on `:3000`, backend on `:8080`).
+- Helper scripts: `scripts/dev-up.sh`, `scripts/dev-status.sh`, `scripts/smoke-local.sh`, `scripts/dev-down.sh`.
+- `compose.yaml` holds daily local services (Oracle, LocalStack, backend, frontend); `compose.parity.yaml` adds Redis and RabbitMQ for parity-only testing.
+
+## Architecture Overview
+
+- Gradle multi-project workspace (`backend/settings.gradle`, root project `marketplace-platform`) with a single deployable module today: `backend/marketplace-service` (Spring Boot 4.1, Java 25).
+- `marketplace-service` is a **Spring Modulith** modular monolith, not a set of separate services. Each marketplace domain listed in "Architecture Rules" above is meant to be a top-level package under `com.example.marketplace`, declared with a `package-info.java` carrying `@ApplicationModule`. Modules may only depend on each other through explicitly published named interfaces and application events, never through internal classes.
+- `ModularMonolithArchitectureTests` (`backend/marketplace-service/src/test/java/com/example/marketplace/architecture/ModularMonolithArchitectureTests.java`) calls `ApplicationModules.of(MarketplaceApplication.class).verify()`. This enforces the module boundaries above at test time, run it (via `./gradlew check` or `./gradlew test`) after adding or rewiring any cross-package dependency.
+- `shared` is declared `@ApplicationModule(type = ApplicationModule.Type.OPEN)`, meaning it is visible to every other module. Put cross-cutting primitives there (for example `shared.exception.InvalidStateTransitionException`, `money.Money`), not domain-specific logic.
+- Current domain code implements the **product publication lifecycle**: `Product`, `ProductVersion`, `ProductVariant`, `ProductVariantVersion`, each paired with its own `E*Status` enum and its own package. Follow the existing pattern for stateful entities: private setters, a `create(...)` static factory, and explicit transition methods (e.g. `discontinue()`, `resumeSelling()`, `archive()`) that validate the allowed source states and throw `InvalidStateTransitionException` on an illegal transition, rather than exposing a generic `setStatus`.
+- `Tenant` and `Store` are the other domain aggregates currently implemented; tenant isolation and store ownership are foundational to every later module (see Security Rules and Database Rules above).
+- The authoritative design for the currently active feature is `artifacts/product-publication-lifecycle/specification.md` plus its Mermaid diagrams in the same directory. Cross-feature system design lives in `docs/md/` (`02_system_architecture.md` for the service/data topology, `05_transactions_and_state.md` for transactional and state-machine behavior, `07_testing_plan.md`, `09_api_endpoint_delivery_process.md`, etc.).
+- API and event contracts are versioned independently of code under `contracts/`: `contracts/openapi/marketplace-api.yaml`, `contracts/asyncapi/marketplace-events.yaml`, `contracts/webhooks/signature-contracts.md`, and conventions in `contracts/convention/api-conventions.md`.
+- Frontend (`frontend/web`, Next.js + TypeScript) has no feature code yet; when adding pages, mirror the backend domain names under `frontend/web/src/features` as described in Frontend Rules above.
+- Feature work is expected to follow the artifact-driven workflow described in `artifacts/README.md`: `intake.md` -> `specification.md` -> tests-first -> implementation, with every acceptance criterion traceable to a test.
+
+<!-- rtk-instructions v2 -->
+# RTK (Rust Token Killer) - Token-Optimized Commands
+
+## Golden Rule
+
+**Always prefix commands with `rtk`**. If RTK has a dedicated filter, it uses it. If not, it passes through unchanged. This means RTK is always safe to use.
+
+**Important**: Even in command chains with `&&`, use `rtk`:
+```bash
+# ❌ Wrong
+git add . && git commit -m "msg" && git push
+
+# ✅ Correct
+rtk git add . && rtk git commit -m "msg" && rtk git push
+```
+
+## RTK Commands by Workflow
+
+### Build & Compile (80-90% savings)
+```bash
+rtk cargo build         # Cargo build output
+rtk cargo check         # Cargo check output
+rtk cargo clippy        # Clippy warnings grouped by file (80%)
+rtk tsc                 # TypeScript errors grouped by file/code (83%)
+rtk lint                # ESLint/Biome violations grouped (84%)
+rtk prettier --check    # Files needing format only (70%)
+rtk next build          # Next.js build with route metrics (87%)
+```
+
+### Test (60-99% savings)
+```bash
+rtk cargo test          # Cargo test failures only (90%)
+rtk go test             # Go test failures only (90%)
+rtk jest                # Jest failures only (99.5%)
+rtk vitest              # Vitest failures only (99.5%)
+rtk playwright test     # Playwright failures only (94%)
+rtk pytest              # Python test failures only (90%)
+rtk rake test           # Ruby test failures only (90%)
+rtk rspec               # RSpec test failures only (60%)
+rtk test <cmd>          # Generic test wrapper - failures only
+```
+
+### Git (59-80% savings)
+```bash
+rtk git status          # Compact status
+rtk git log             # Compact log (works with all git flags)
+rtk git diff            # Compact diff (80%)
+rtk git show            # Compact show (80%)
+rtk git add             # Ultra-compact confirmations (59%)
+rtk git commit          # Ultra-compact confirmations (59%)
+rtk git push            # Ultra-compact confirmations
+rtk git pull            # Ultra-compact confirmations
+rtk git branch          # Compact branch list
+rtk git fetch           # Compact fetch
+rtk git stash           # Compact stash
+rtk git worktree        # Compact worktree
+```
+
+Note: Git passthrough works for ALL subcommands, even those not explicitly listed.
+
+### GitHub (26-87% savings)
+```bash
+rtk gh pr view <num>    # Compact PR view (87%)
+rtk gh pr checks        # Compact PR checks (79%)
+rtk gh run list         # Compact workflow runs (82%)
+rtk gh issue list       # Compact issue list (80%)
+rtk gh api              # Compact API responses (26%)
+```
+
+### JavaScript/TypeScript Tooling (70-90% savings)
+```bash
+rtk pnpm list           # Compact dependency tree (70%)
+rtk pnpm outdated       # Compact outdated packages (80%)
+rtk pnpm install        # Compact install output (90%)
+rtk npm run <script>    # Compact npm script output
+rtk npx <cmd>           # Compact npx command output
+rtk prisma              # Prisma without ASCII art (88%)
+rtk uv run <cmd>        # Compact uv project command output
+```
+
+### Files & Search (60-75% savings)
+```bash
+rtk ls <path>           # Tree format, compact (65%)
+rtk read <file>         # Code reading with filtering (60%)
+rtk grep <pattern>      # Search grouped by file (75%). Format flags (-c, -l, -L, -o, -Z) run raw.
+rtk find <pattern>      # Find grouped by directory (70%)
+```
+
+### Analysis & Debug (70-90% savings)
+```bash
+rtk err <cmd>           # Filter errors only from any command
+rtk log <file>          # Deduplicated logs with counts
+rtk json <file>         # JSON structure without values
+rtk deps                # Dependency overview
+rtk env                 # Environment variables compact
+rtk summary <cmd>       # Smart summary of command output
+rtk diff                # Ultra-compact diffs
+```
+
+### Infrastructure (85% savings)
+```bash
+rtk docker ps           # Compact container list
+rtk docker images       # Compact image list
+rtk docker logs <c>     # Deduplicated logs
+rtk kubectl get         # Compact resource list
+rtk kubectl logs        # Deduplicated pod logs
+```
+
+### Network (65-70% savings)
+```bash
+rtk curl <url>          # Compact HTTP responses (70%)
+rtk wget <url>          # Compact download output (65%)
+```
+
+### Meta Commands
+```bash
+rtk gain                # View token savings statistics
+rtk gain --history      # View command history with savings
+rtk discover            # Analyze Claude Code sessions for missed RTK usage
+rtk proxy <cmd>         # Run command without filtering (for debugging)
+rtk init                # Add RTK instructions to CLAUDE.md
+rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
+```
+
+## Token Savings Overview
+
+| Category | Commands | Typical Savings |
+|----------|----------|-----------------|
+| Tests | vitest, playwright, cargo test | 90-99% |
+| Build | next, tsc, lint, prettier | 70-87% |
+| Git | status, log, diff, add, commit | 59-80% |
+| GitHub | gh pr, gh run, gh issue | 26-87% |
+| Package Managers | pnpm, npm, npx | 70-90% |
+| Files | ls, read, grep, find | 60-75% |
+| Infrastructure | docker, kubectl | 85% |
+| Network | curl, wget | 65-70% |
+
+Overall average: **60-90% token reduction** on common development operations.
+<!-- /rtk-instructions -->

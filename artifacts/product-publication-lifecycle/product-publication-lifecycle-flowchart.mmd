@@ -3,7 +3,7 @@ flowchart TD
 
     subgraph Drafting[Create the draft product graph]
         CREATE_PRODUCT[Create stable Product identity for Store]
-        PRODUCT_RESULT[Product has no publication state and no current published version]
+        PRODUCT_RESULT[Product starts ACTIVE with no current published version]
         CREATE_VERSION[Create first ProductVersion in DRAFT]
         EDIT_CONTENT[Set name, description, category, and media references]
         CREATE_VARIANTS[Create stable ProductVariant identities]
@@ -20,7 +20,9 @@ flowchart TD
     end
 
     subgraph Submission[Submit the complete version for review]
-        SUBMIT[Merchant requests submitForReview]
+        SUBMIT[Merchant requests submitVersionForReview through Product]
+        PRODUCT_STATUS_SUBMIT{"Is Product ACTIVE?"}
+        PRODUCT_STATUS_SUBMIT_ERROR[Throw InvalidStatusOperationException]
         DRAFT_STATE{"Is ProductVersion in DRAFT?"}
         SUBMIT_STATE_ERROR[Throw IllegalLifecycleTransitionException]
         READINESS{"Is the version ready?<br>Name, description, and category present<br>At least one active variant offer<br>Every included SKU non-blank and unique<br>Every included Money price strictly positive"}
@@ -30,7 +32,9 @@ flowchart TD
     end
 
     subgraph Publication[Publish the first product version]
-        PUBLISH[Merchant requests publish]
+        PUBLISH[Merchant requests publish through Product]
+        PRODUCT_STATUS_PUBLISH{"Is Product ACTIVE?"}
+        PRODUCT_STATUS_PUBLISH_ERROR[Throw InvalidStatusOperationException]
         OWNERSHIP_RECHECK{"Do Product, version, variants, and offers have matching ownership?"}
         PUBLICATION_STATE{"Are ProductVersion and every included offer in IN_REVIEW?"}
         PUBLISH_ERROR[Throw ownership or illegal-transition exception]
@@ -58,7 +62,10 @@ flowchart TD
     INVENTORY_ERROR --> UNCHANGED
     INVENTORY_VALID -- Yes --> INVENTORY_OK
     INVENTORY_OK --> SUBMIT
-    SUBMIT --> DRAFT_STATE
+    SUBMIT --> PRODUCT_STATUS_SUBMIT
+    PRODUCT_STATUS_SUBMIT -- No --> PRODUCT_STATUS_SUBMIT_ERROR
+    PRODUCT_STATUS_SUBMIT_ERROR --> UNCHANGED
+    PRODUCT_STATUS_SUBMIT -- Yes --> DRAFT_STATE
     DRAFT_STATE -- No --> SUBMIT_STATE_ERROR
     SUBMIT_STATE_ERROR --> UNCHANGED
     DRAFT_STATE -- Yes --> READINESS
@@ -67,7 +74,10 @@ flowchart TD
     READINESS -- Yes --> PREFLIGHT_SUBMIT
     PREFLIGHT_SUBMIT --> IN_REVIEW
     IN_REVIEW --> PUBLISH
-    PUBLISH --> OWNERSHIP_RECHECK
+    PUBLISH --> PRODUCT_STATUS_PUBLISH
+    PRODUCT_STATUS_PUBLISH -- No --> PRODUCT_STATUS_PUBLISH_ERROR
+    PRODUCT_STATUS_PUBLISH_ERROR --> UNCHANGED
+    PRODUCT_STATUS_PUBLISH -- Yes --> OWNERSHIP_RECHECK
     OWNERSHIP_RECHECK -- No --> PUBLISH_ERROR
     OWNERSHIP_RECHECK -- Yes --> PUBLICATION_STATE
     PUBLICATION_STATE -- No --> PUBLISH_ERROR
@@ -87,7 +97,7 @@ flowchart TD
 
     class START,COMPLETE startEnd
     class CREATE_PRODUCT,PRODUCT_RESULT,CREATE_VERSION,EDIT_CONTENT,CREATE_VARIANTS,CREATE_OFFERS,CREATE_INVENTORY,INVENTORY_OK,SUBMIT,PUBLISH operation
-    class OWNERSHIP,INVENTORY_VALID,DRAFT_STATE,READINESS,OWNERSHIP_RECHECK,PUBLICATION_STATE decision
-    class OWNERSHIP_ERROR,INVENTORY_ERROR,SUBMIT_STATE_ERROR,READINESS_ERROR,PUBLISH_ERROR,UNCHANGED error
+    class OWNERSHIP,INVENTORY_VALID,DRAFT_STATE,READINESS,OWNERSHIP_RECHECK,PUBLICATION_STATE,PRODUCT_STATUS_SUBMIT,PRODUCT_STATUS_PUBLISH decision
+    class OWNERSHIP_ERROR,INVENTORY_ERROR,SUBMIT_STATE_ERROR,READINESS_ERROR,PUBLISH_ERROR,UNCHANGED,PRODUCT_STATUS_SUBMIT_ERROR,PRODUCT_STATUS_PUBLISH_ERROR error
     class IN_REVIEW,PUBLISH_CHILDREN,PUBLISH_VERSION,SET_POINTER success
     class PREFLIGHT_SUBMIT,PREFLIGHT_PUBLISH guard

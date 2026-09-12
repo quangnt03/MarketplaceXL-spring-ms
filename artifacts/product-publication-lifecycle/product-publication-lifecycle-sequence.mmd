@@ -32,39 +32,58 @@ sequenceDiagram
         end
     end
 
-    Merchant->>Version: submitForReview(active variants, offers)
-    Version->>Version: Verify source state is DRAFT
-    alt Version is not DRAFT
-        Version-->>Merchant: Throw IllegalLifecycleTransitionException
-        Note over Version,Offer: Parent and children remain unchanged
-    else Version is DRAFT
-        Version->>Version: Validate name, description, and category
-        Version->>Offer: Validate ownership and at least one active offer
-        Offer->>Offer: Validate non-blank unique SKUs and positive Money prices
-        alt Any readiness rule fails
-            Offer-->>Version: Return stable readiness failure reason
-            Version-->>Merchant: Throw ProductReadinessException
-            %% Note over Version,Offer: Full preflight prevents partial transition; all remain DRAFT
-        else Full aggregate is ready
-            Offer-->>Version: Readiness preflight succeeds
-            Version->>Offer: Move every included eligible offer to IN_REVIEW
-            Version->>Version: Move ProductVersion to IN_REVIEW
-            Version-->>Merchant: Submission accepted
+    Merchant->>Product: submitVersionForReview(version, active variants, offers)
+    Product->>Product: Verify status is ACTIVE
+    alt Product is not ACTIVE
+        Product-->>Merchant: Throw InvalidStatusOperationException
+        Note over Product,Version: Version and offers remain unchanged
+    else Product is ACTIVE
+        Product->>Product: Verify version.productId matches Product
+        alt Version belongs to another Product
+            Product-->>Merchant: Throw OwnershipMismatchException
+            Note over Product,Version: Version and offers remain unchanged
+        else Ownership matches
+            Product->>Version: submitForReview(active variants, offers)
+            Version->>Version: Verify source state is DRAFT
+            alt Version is not DRAFT
+                Version-->>Merchant: Throw IllegalLifecycleTransitionException
+                Note over Version,Offer: Parent and children remain unchanged
+            else Version is DRAFT
+                Version->>Version: Validate name, description, and category
+                Version->>Offer: Validate ownership and at least one active offer
+                Offer->>Offer: Validate non-blank unique SKUs and positive Money prices
+                alt Any readiness rule fails
+                    Offer-->>Version: Return stable readiness failure reason
+                    Version-->>Merchant: Throw ProductReadinessException
+                    %% Note over Version,Offer: Full preflight prevents partial transition; all remain DRAFT
+                else Full aggregate is ready
+                    Offer-->>Version: Readiness preflight succeeds
+                    Version->>Offer: Move every included eligible offer to IN_REVIEW
+                    Version->>Version: Move ProductVersion to IN_REVIEW
+                    Version-->>Merchant: Submission accepted
+                end
+            end
         end
     end
 
     Merchant->>Product: publish(version, offers)
-    Product->>Version: Verify version ownership and IN_REVIEW state
-    Version->>Offer: Preflight ownership and IN_REVIEW state for every included offer
-    alt Ownership or lifecycle validation fails
-        Offer-->>Version: Return validation failure
-        Version-->>Product: Abort publication
-        Product-->>Merchant: Throw domain exception
+    Product->>Product: Verify status is ACTIVE
+    alt Product is not ACTIVE
+        Product-->>Merchant: Throw InvalidStatusOperationException
         Note over Product,Offer: Version, offers, and currentPublishedVersionId remain unchanged
-    else Every publication precondition succeeds
-        Offer-->>Version: Publication preflight succeeds
-        Version->>Offer: Move all included offers to PUBLISHED
-        Product->>Version: Move ProductVersion to PUBLISHED
-        Product->>Product: Set currentPublishedVersionId
-        Product-->>Merchant: First complete version published
+    else Product is ACTIVE
+        Product->>Version: Verify version ownership and IN_REVIEW state
+        Version->>Offer: Preflight ownership and IN_REVIEW state for every included offer
+        alt Ownership or lifecycle validation fails
+            Offer-->>Version: Return validation failure
+            Version-->>Product: Abort publication
+            Product-->>Merchant: Throw domain exception
+            Note over Product,Offer: Version, offers, and currentPublishedVersionId remain unchanged
+        else Every publication precondition succeeds
+            Offer-->>Version: Publication preflight succeeds
+            Version->>Offer: Move all included offers to PUBLISHED
+            Product->>Version: Move ProductVersion to PUBLISHED
+            Product->>Product: Set currentPublishedVersionId
+            Product-->>Merchant: First complete version published
+        end
     end

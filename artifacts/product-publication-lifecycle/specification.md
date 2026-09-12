@@ -18,6 +18,7 @@ Define and test the smallest infrastructure-free domain slice that lets a mercha
 ### In Scope
 
 - Product identity associated with a Store.
+- Product's own `ACTIVE`/`DISCONTINUED`/`ARCHIVED` availability status, which gates submission and publication of its versions.
 - ProductVersion content and lifecycle.
 - Stable ProductVariant identity separated from ProductVariantVersion sellable data.
 - Money price stored directly on ProductVariantVersion.
@@ -37,7 +38,8 @@ Define and test the smallest infrastructure-free domain slice that lets a mercha
 
 ### Assumptions
 
-- Product is a stable identity and does not carry publication state.
+- Product is a stable identity; its own availability status (`ACTIVE`/`DISCONTINUED`/`ARCHIVED`) is a separate concern from ProductVersion's publication lifecycle, but a Product must be `ACTIVE` for submission or publication of any of its versions to proceed.
+- ProductVariant's own transitions (discontinue/resumeSelling/archive) and Inventory initialization remain independent of Product's availability status; only submission and publication are gated.
 - ProductVersion owns mutable catalog presentation data such as name, description, category, and media references.
 - ProductVariant is stable identity under Product.
 - ProductVariantVersion belongs to both a ProductVariant and a ProductVersion and owns versioned SKU, display name, price, and publication status.
@@ -50,6 +52,7 @@ Define and test the smallest infrastructure-free domain slice that lets a mercha
 
 - Whether later work must implement all additional lifecycle transitions already listed in `docs/md/05_transactions_and_state.md`.
 - Whether future versions reuse stable variants and inventory or may introduce new stable variants.
+- Whether Product's availability status should later also gate ProductVariant's own transitions (discontinue/resumeSelling/archive) and Inventory initialization, or remain scoped to submission and publication only (current decision: scoped, see Decision Log).
 
 ## 2. User Stories
 
@@ -60,12 +63,13 @@ Define and test the smallest infrastructure-free domain slice that lets a mercha
 | US-03 | Must | As a merchant, I want to initialize inventory independently so that stocking does not alter publication state. |
 | US-04 | Must | As a merchant, I want incomplete versions rejected at submission so that only sellable content enters review. |
 | US-05 | Must | As a merchant, I want an approved version published atomically in the domain model so that the product points to a coherent published version. |
+| US-06 | Must | As a merchant, I want submission and publication blocked while my product is discontinued or archived, so that a paused or retired product cannot gain new reviewed or published content. |
 
 ## 3. Acceptance Criteria
 
 | ID | Story | Criterion |
 |---|---|---|
-| AC-01 | US-01 | Given Store S1, when Product P1 is created, then P1 records S1 and has a null currentPublishedVersionId with no publication status. |
+| AC-01 | US-01 | Given Store S1, when Product P1 is created, then P1 records S1, starts in `ACTIVE` availability status, and has a null currentPublishedVersionId. |
 | AC-02 | US-02 | Given P1, when V1 is created, then V1 records P1 and starts in `DRAFT`. |
 | AC-03 | US-02 | Given V1 in `DRAFT`, when its versioned attributes are edited, then name, description, category, and media references are updated without changing Product state. |
 | AC-04 | US-02 | Given P1 and V1, when a variant is defined, then ProductVariant provides stable identity while ProductVariantVersion records V1-specific SKU, name, Money price, and `DRAFT` status. |
@@ -77,6 +81,7 @@ Define and test the smallest infrastructure-free domain slice that lets a mercha
 | AC-10 | US-05 | Given any state other than the required source state, when submit or publish is requested, then an illegal-transition domain exception is thrown and the aggregate remains unchanged. |
 | AC-11 | US-02 | Given identifiers from mismatched products or versions, when entities are associated, then an ownership domain exception is thrown. |
 | AC-12 | US-05 | Given publication validation fails for any included variant version, when publish is requested, then neither parent nor child state nor Product.currentPublishedVersionId changes. |
+| AC-13 | US-06 | Given a Product that is `DISCONTINUED` or `ARCHIVED`, when submission for review or publication is requested for one of its versions, then an invalid-status domain exception identifies the Product and its current status, and no lifecycle state changes on the version, its offers, or Product.currentPublishedVersionId. |
 
 ## 4. Functional Flow
 
@@ -161,9 +166,13 @@ erDiagram
 |---|---|---|---|---|---|
 | ProductVersion and included ProductVariantVersions | `DRAFT` | Submit for review | Required content exists; at least one active variant exists; all included active offers have unique valid SKUs and valid prices | `IN_REVIEW` | None outside the aggregate graph |
 | ProductVersion and included ProductVariantVersions | `IN_REVIEW` | Publish first version | Parent and every included eligible child are `IN_REVIEW`; identifiers and ownership match | `PUBLISHED` | Product.currentPublishedVersionId is set to the version ID |
+| Product | `ACTIVE` | Discontinue | none | `DISCONTINUED` | None outside Product |
+| Product | `DISCONTINUED` | Resume selling | none | `ACTIVE` | None outside Product |
+| Product | `ACTIVE` or `DISCONTINUED` | Archive | none | `ARCHIVED` | None outside Product |
 
 - **Transaction boundary:** No database transaction exists; one aggregate-level command performs preflight validation before any in-memory mutation.
 - **Invalid transitions:** Throw a dedicated IllegalLifecycleTransitionException carrying entity type, identifier, source state, and attempted action.
+- **Cross-entity guard (AC-13):** `Product.submitVersionForReview(...)` and `Product.publish(...)` both require Product to be `ACTIVE` before delegating to `ProductVersion`; a `DISCONTINUED` or `ARCHIVED` Product rejects both with `InvalidStatusOperationException` and leaves the version, its offers, and the product pointer unchanged. This guard is checked fresh on every call, so a Product that becomes non-`ACTIVE` after submission but before publish still blocks publish. ProductVariant's own transitions and Inventory initialization are not gated by Product's status.
 - **Concurrency/idempotency:** Repeated operations are rejected as illegal transitions; cross-process concurrency is deferred to persistence work.
 - **Recovery:** Failed validation leaves every involved object unchanged.
 
@@ -191,11 +200,13 @@ No user-facing surface is included in this domain-only slice.
 
 ### Coverage Summary
 
-- The JUnit suite maps tests to every acceptance criterion from AC-01 through AC-12.
-- The suite contains 17 test methods and 30 planned cases after expanding parameterized inputs.
+- The JUnit suite maps tests to every acceptance criterion from AC-01 through AC-13.
+- As of this update the suite contains 27 test methods and 39 planned cases after expanding parameterized inputs, counted directly from current test source (not from a test run).
 - All tests are isolated unit tests using JUnit 5 and AssertJ.
 - The suite does not load Spring, use mocks, connect to a database, or invoke external infrastructure.
-- The test source is `backend/marketplace-service/src/test/java/com/example/marketplace/product/ProductPublicationLifecycleTest.java`.
+- The test sources are under `backend/marketplace-service/src/test/java/com/example/marketplace/product`, `backend/marketplace-service/src/test/java/com/example/marketplace/product_version`, and `backend/marketplace-service/src/test/java/com/example/marketplace/product_variant`.
+- `ProductVersion.submitForReview(...)` and `ProductVariant`'s own methods are also tested directly (e.g. in `ProductVersionSubmissionTest`), independent of `Product`, proving each child's own contract in isolation; `ProductAvailabilityGateTest` separately proves the AC-13 gate at the `Product` entry points (`submitVersionForReview`, `publish`). Both layers are intentional, not duplicated: the child-level tests would keep passing even if the AC-13 gate were removed, and vice versa.
+- `ProductVariantVersion`'s own transition methods (`reviseReview`, `rejectReview`, `supersedeVersion`, `discard`, `archive`) have no dedicated unit tests yet; they are only exercised indirectly through `submitForReview`/`publish` fixtures.
 - Integration, end-to-end, and smoke tests are not applicable to this infrastructure-free slice.
 - Execution is currently unverified because the production types and APIs required by the contract tests are incomplete.
 
@@ -203,7 +214,7 @@ No user-facing surface is included in this domain-only slice.
 
 | Test ID | Acceptance criteria | Test method or case | Case description | Expected behavior |
 |---|---|---|---|---|
-| UT-01 | AC-01 | `ac01_createProductRetainsStoreOwnershipWithoutPublicationState` | Create Product P1 for Store S1. | Product retains its ID, store ID, and product code; currentPublishedVersionId is empty; Product exposes no publication state. |
+| UT-01 | AC-01 | `ac01_createProductRetainsStoreOwnershipAndStartsActive` | Create Product P1 for Store S1. | Product retains its ID, store ID, and product code; status starts `ACTIVE`; currentPublishedVersionId is empty. |
 | UT-02 | AC-02 | `ac02_createFirstProductVersionStartsInDraft` | Create the first ProductVersion V1 for P1. | V1 retains its ID, product ID, and version number and starts in `DRAFT`. |
 | UT-03 | AC-03 | `ac03_editVersionedDetailsDoesNotChangeProductIdentity` | Update V1 name, description, category, and media references. | V1 contains the edited values and remains `DRAFT`; Product identity and currentPublishedVersionId remain unchanged. |
 | UT-04 | AC-04 | `ac04_stableVariantIdentityIsSeparatedFromVersionedOfferData` | Create stable variant BLACK-S and its V1 ProductVariantVersion offer. | ProductVariant retains stable product identity and `ACTIVE` status; ProductVariantVersion owns V1, SKU, display name, Money price, and `DRAFT` publication status. |
@@ -233,17 +244,26 @@ No user-facing surface is included in this domain-only slice.
 | UT-13C | AC-11 | `ac11_mismatchedOwnershipIsRejected[offer belongs to another product version]` | Submit V1 with a ProductVariantVersion owned by another ProductVersion. | `OwnershipMismatchException` is thrown. |
 | UT-13D | AC-11 | `ac11_mismatchedOwnershipIsRejected[offer references a variant outside the submitted aggregate]` | Submit V1 with an offer whose ProductVariant identifier is absent from the supplied variant graph. | `OwnershipMismatchException` is thrown. |
 | UT-14 | AC-12 | `ac12_failedChildPublicationLeavesTheWholeAggregateUnchanged` | Attempt publication with V1 and two offers in `IN_REVIEW` plus one included offer still in `DRAFT`. | `IllegalLifecycleTransitionException` is thrown; V1 and existing offers remain `IN_REVIEW`; the invalid offer remains `DRAFT`; Product.currentPublishedVersionId remains empty. |
+| UT-15 | AC-13 | `ProductAvailabilityGateTest.SubmissionGate.activeProductDelegatesToVersionSubmission` | Submit V1 through Product while Product is `ACTIVE`. | `Product.submitVersionForReview` delegates successfully; V1 and its offers move to `IN_REVIEW`. |
+| UT-16A | AC-13 | `ProductAvailabilityGateTest.SubmissionGate.nonActiveProductRejectsSubmissionWithoutMutation[DISCONTINUED]` | Submit V1 through a `DISCONTINUED` Product. | `InvalidStatusOperationException` identifies status `DISCONTINUED`; V1 and its offers remain `DRAFT`. |
+| UT-16B | AC-13 | `ProductAvailabilityGateTest.SubmissionGate.nonActiveProductRejectsSubmissionWithoutMutation[ARCHIVED]` | Submit V1 through an `ARCHIVED` Product. | `InvalidStatusOperationException` identifies status `ARCHIVED`; V1 and its offers remain `DRAFT`. |
+| UT-17 | AC-11 | `ProductAvailabilityGateTest.SubmissionGate.versionBelongingToAnotherProductIsRejected` | Submit through Product P1 a ProductVersion whose productId belongs to another Product. | `OwnershipMismatchException` is thrown. |
+| UT-18A | AC-13 | `ProductAvailabilityGateTest.PublicationGate.productBecomingNonActiveAfterSubmissionRejectsPublishWithoutMutation[DISCONTINUED]` | Submit V1 while Product is `ACTIVE`, discontinue the Product, then attempt to publish. | `InvalidStatusOperationException` identifies status `DISCONTINUED`; V1 and offers remain `IN_REVIEW`; the product pointer remains empty. |
+| UT-18B | AC-13 | `ProductAvailabilityGateTest.PublicationGate.productBecomingNonActiveAfterSubmissionRejectsPublishWithoutMutation[ARCHIVED]` | Submit V1 while Product is `ACTIVE`, archive the Product, then attempt to publish. | `InvalidStatusOperationException` identifies status `ARCHIVED`; V1 and offers remain `IN_REVIEW`; the product pointer remains empty. |
+| UT-19 | AC-10 | `ProductPublicationTest.IllegalTransitions.ac10_repeatedApprovePublishOnVersionAloneIsRejectedWithoutMutation` | Call `ProductVersion.approvePublish()` directly a second time, bypassing Product. | `IllegalLifecycleTransitionException` identifies entity type `product_version` and source state `PUBLISHED`; V1 remains `PUBLISHED`. |
 
 ### Static Coverage Evaluation
 
-The test contract maps at least one case to every acceptance criterion from AC-01 through AC-12.
+The test contract maps at least one case to every acceptance criterion from AC-01 through AC-13.
 The added cases close the most direct gaps in empty-input readiness, null-price readiness, invalid lifecycle source states, duplicate publication, child-state preflight, and offer-to-variant ownership.
 Assertions were also strengthened for draft-edit isolation, versioned display name ownership, inventory preservation, and unchanged child states after rejected publication.
+UT-15 through UT-19 (AC-13, plus one AC-10 and one AC-11 case reached through the new `Product.submitVersionForReview` entry point) are implemented in `ProductAvailabilityGateTest` and `ProductPublicationTest`, confirmed present in current source.
 This evaluation is static and does not claim that any case compiles, fails for the intended reason, or passes.
 
 | Coverage area | Assessment after additions | Evidence |
 |---|---|---|
-| Product identity and first version | Strong behavioral coverage with one structural follow-up | AC-01 and AC-02 cover stable ownership, initial pointer state, version identity, version number, and initial `DRAFT` state; absence of a Product publication-status property remains an architecture check. |
+| Product identity and first version | Strong | AC-01 and AC-02 cover stable ownership, initial `ACTIVE` availability status, initial pointer state, version identity, version number, and initial `DRAFT` state. |
+| Product availability gate | Strong | AC-13 covers successful delegation while `ACTIVE`, rejection without mutation while `DISCONTINUED` or `ARCHIVED` (including a Product that changes status after submission but before publish), and ownership mismatch through the new `submitVersionForReview` entry point (AC-11). |
 | Draft content isolation | Strong | AC-03 now asserts edited version fields, unchanged `DRAFT` state, stable Product identity, and an unchanged publication pointer. |
 | Stable variant versus versioned offer | Strong | AC-04 now asserts stable variant ownership and status plus version-specific SKU, display name, Money price, parents, and `DRAFT` state. |
 | Inventory initialization | Strong with one follow-up | AC-05 covers zero, positive, and negative quantities plus unchanged lifecycle state; AC-06 rejects a second initialization and preserves the original returned inventory. |
@@ -265,7 +285,7 @@ These cases remain useful but require an API or product decision before they can
 | Medium | SKU normalization | Decide whether `BLACK-S` and whitespace-padded equivalents are duplicates. | Case-insensitive uniqueness is specified, but whitespace normalization is not. |
 | Medium | Collection ownership | Verify that media-reference inputs are defensively copied and cannot mutate ProductVersion after update. | Mutability semantics are not stated in the current business requirements. |
 | Low | Performance constraint | Submit a large deterministic offer collection and guard against quadratic duplicate-SKU validation. | A stable size or performance budget is not specified, so exact timing assertions would be brittle. |
-| Structural | AC-01 | Verify that Product exposes no publication-status property. | This is an API-shape rule better enforced by architecture inspection than by behavioral unit assertions. |
+| Medium | AC-13 boundary | Decide whether Product's availability status should also gate ProductVariant's own transitions (discontinue/resumeSelling/archive) and Inventory initialization. | Scoped out for this pass; ProductVariant and Inventory remain independent of Product's status per the Decision Log entry below. Revisit if a concrete case for broader gating appears. |
 
 ### Excluded Test Layers
 
@@ -290,7 +310,8 @@ These cases remain useful but require an API or product decision before they can
 ## 14. Definition of Done
 
 - [ ] The specification and assumptions are approved.
-- [ ] Product has identity and current-published-version responsibility but no publication lifecycle status.
+- [ ] Product has identity, current-published-version responsibility, and an independent `ACTIVE`/`DISCONTINUED`/`ARCHIVED` availability status.
+- [ ] Submission and publication are rejected without mutation whenever the owning Product is not `ACTIVE`, checked fresh on each call.
 - [ ] ProductVersion owns versioned product content and its lifecycle.
 - [ ] ProductVariant identity and ProductVariantVersion content/lifecycle are separate.
 - [ ] Money price is held directly by ProductVariantVersion.
@@ -309,3 +330,4 @@ These cases remain useful but require an API or product decision before they can
 | 2026-08-10 | Store price as Money on ProductVariantVersion, not in a separate ProductPrice entity | Week 1 does not require independent price history, and price is versioned offer data | Pending user approval | AC-04, AC-08; UT-03, UT-09 |
 | 2026-08-10 | Keep Inventory on stable ProductVariant identity | Inventory lifecycle must remain independent from ProductVersion publication | Pending user approval | AC-05, AC-06; UT-04, UT-05, UT-06 |
 | 2026-08-10 | Limit implemented lifecycle paths to first-version submit and publish | Matches the requested exit criteria while preserving the documented larger state model for later slices | Pending user approval | AC-07, AC-09, AC-10; UT-07, UT-10, UT-11 |
+| 2026-09-12 | Product carries its own `ACTIVE`/`DISCONTINUED`/`ARCHIVED` availability status, independent of the publication lifecycle; submission and publication are additionally gated on Product being `ACTIVE`, enforced by centralizing both through `Product` (`submitVersionForReview(...)`, and the existing `publish(...)`) rather than passing Product into each child method. ProductVariant's own transitions and Inventory initialization stay independent of this gate. | A merchant-paused or retired product must not gain new reviewed or published content; centralizing through Product matches the existing `publish()` pattern and keeps `ProductVersion`'s own readiness/transition contract independently testable | User approved | AC-01 (revised), AC-13 (new), US-06 (new); UT-15 through UT-19 |

@@ -3,7 +3,7 @@ package com.example.marketplace.tenant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.example.marketplace.shared.exception.InvalidStateTransitionException;
+import com.example.marketplace.shared.exception.IllegalLifecycleTransitionException;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -19,7 +19,7 @@ class TenantTest {
 
     @Test
     void newTenantStartsActiveAndRetainsItsIdentity() {
-        Tenant tenant = new Tenant(TENANT_ID, "Acme");
+        Tenant tenant = Tenant.create(TENANT_ID, "Acme");
 
         assertThat(tenant.getTenantId()).isEqualTo(TENANT_ID);
         assertThat(tenant.getTenantName()).isEqualTo("Acme");
@@ -51,18 +51,18 @@ class TenantTest {
         Tenant tenant = tenantIn(initialStatus);
 
         assertThatThrownBy(() -> transition.apply(tenant))
-                .isInstanceOf(InvalidStateTransitionException.class)
-                .hasMessageContaining("Tenant")
+                .isInstanceOf(IllegalLifecycleTransitionException.class)
+                .hasMessageContaining("tenant")
                 .hasMessageContaining(TENANT_ID.toString())
                 .hasMessageContaining(initialStatus.name())
                 .hasMessageContaining(attemptedTransition)
                 .satisfies(error -> {
-                    InvalidStateTransitionException transitionError =
-                            (InvalidStateTransitionException) error;
-                    assertThat(transitionError.getDomainType()).isEqualTo("Tenant");
-                    assertThat(transitionError.getDomainId()).isEqualTo(TENANT_ID.toString());
-                    assertThat(transitionError.getCurrentState()).isEqualTo(initialStatus.name());
-                    assertThat(transitionError.getAttemptedTransition())
+                    IllegalLifecycleTransitionException transitionError =
+                            (IllegalLifecycleTransitionException) error;
+                    assertThat(transitionError.getEntityType()).isEqualTo("Tenant");
+                    assertThat(transitionError.getEntityId()).isEqualTo(TENANT_ID.toString());
+                    assertThat(transitionError.getSourceState()).isEqualTo(initialStatus.name());
+                    assertThat(transitionError.getAttemptedAction())
                             .isEqualTo(attemptedTransition);
                 });
         assertThat(tenant.getStatus()).isEqualTo(initialStatus);
@@ -149,7 +149,7 @@ class TenantTest {
     }
 
     private static Tenant tenantIn(ETenantStatus status) {
-        Tenant tenant = new Tenant(TENANT_ID, "Acme");
+        Tenant tenant = Tenant.create(TENANT_ID, "Acme");
         switch (status) {
             case ACTIVE -> {
                 return tenant;

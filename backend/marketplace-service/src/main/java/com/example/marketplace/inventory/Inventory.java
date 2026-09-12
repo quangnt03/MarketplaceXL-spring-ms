@@ -6,7 +6,7 @@ import java.util.UUID;
 import com.example.marketplace.shared.exception.InvalidValueException;
 import com.example.marketplace.shared.state_management.LifecycleStateMachine;
 
-public class Inventory {
+public final class Inventory {
     private UUID id;
     private UUID tenantId;
     private UUID storeId;

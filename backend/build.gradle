@@ -23,5 +23,13 @@ subprojects {
 
     tasks.withType(Test).configureEach {
         useJUnitPlatform()
+
+        testLogging {
+            events "failed"
+            exceptionFormat "full"
+            showExceptions true
+            showCauses true
+            showStackTraces true
+        }
     }
 }

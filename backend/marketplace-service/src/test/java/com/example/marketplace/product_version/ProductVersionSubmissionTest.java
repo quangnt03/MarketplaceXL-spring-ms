@@ -1,5 +1,16 @@
 package com.example.marketplace.product_version;
 
+import java.util.List;
+import java.util.stream.Stream;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import com.example.marketplace.product.Product;
 import static com.example.marketplace.product.ProductLifecycleFixtures.CATEGORY_ID;
 import static com.example.marketplace.product.ProductLifecycleFixtures.MEDIUM_VARIANT_ID;
 import static com.example.marketplace.product.ProductLifecycleFixtures.PRODUCT_ID;
@@ -12,22 +23,12 @@ import static com.example.marketplace.product.ProductLifecycleFixtures.draftVers
 import static com.example.marketplace.product.ProductLifecycleFixtures.offerWithPrice;
 import static com.example.marketplace.product.ProductLifecycleFixtures.validOffer;
 import static com.example.marketplace.product.ProductLifecycleFixtures.validOffers;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import com.example.marketplace.product.Product;
-import com.example.marketplace.shared.exception.IllegalLifecycleTransitionException;
-import com.example.marketplace.shared.exception.ProductReadinessException;
-import com.example.marketplace.shared.exception.ProductReadinessFailure;
 import com.example.marketplace.product_variant.ProductVariant;
 import com.example.marketplace.product_variant_version.EProductVariantVersionStatus;
 import com.example.marketplace.product_variant_version.ProductVariantVersion;
-import java.util.List;
-import java.util.stream.Stream;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import com.example.marketplace.shared.exception.IllegalLifecycleTransitionException;
+import com.example.marketplace.shared.exception.ProductReadinessException;
+import com.example.marketplace.shared.exception.ProductReadinessFailure;
 
 /**
  * ProductVersion submission for review: readiness validation and the DRAFT to IN_REVIEW transition.
@@ -64,9 +65,13 @@ class ProductVersionSubmissionTest {
                         exception -> assertThat(exception.getFailure()).isEqualTo(expectedFailure));
 
         assertThat(version.getPublicationStatus()).isEqualTo(EProductVersionStatus.DRAFT);
-        assertThat(offers)
+        if (offers.isEmpty()) {
+            assertThat(offers).isEmpty();
+        } else {
+            assertThat(offers)
                 .extracting(ProductVariantVersion::getPublicationStatus)
                 .containsOnly(EProductVariantVersionStatus.DRAFT);
+        }
     }
 
     @Test
@@ -146,12 +151,12 @@ class ProductVersionSubmissionTest {
                         List.of(discontinuedVariant()),
                         List.of(validOffer(SMALL_VARIANT_ID, "BLACK-S", "100.00", 1)),
                         ProductReadinessFailure.NO_ACTIVE_VARIANT),
-//                Arguments.of(
-//                        "no variants or offers",
-//                        completeDraftVersion(),
-//                        List.of(),
-//                        List.of(),
-//                        ProductReadinessFailure.NO_ACTIVE_VARIANT),
+                Arguments.of(
+                        "no variants or offers",
+                        completeDraftVersion(),
+                        List.of(),
+                        List.of(),
+                        ProductReadinessFailure.NO_ACTIVE_VARIANT),
                 Arguments.of(
                         "blank SKU",
                         completeDraftVersion(),

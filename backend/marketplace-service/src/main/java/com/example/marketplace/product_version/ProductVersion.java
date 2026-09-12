@@ -95,21 +95,8 @@ public final class ProductVersion {
 
     public void submitForReview(List<ProductVariant> productVariants, List<ProductVariantVersion> offers) {
         // check if there are any variants and versions passed in
-        if (productVariants.isEmpty()) {
-            throw new InvalidValueException(
-                "List<ProductVariant> cannot be empty",
-                "len(List<ProductVariant>) == 0",
-                "product_version.submit_for_review",
-                this.getId().toString()
-            );
-        }
-        if (offers.isEmpty()) {
-            throw new InvalidValueException(
-                "List<ProductVariantVersion> cannot be empty",
-                "len(List<ProductVariantVersion>) == 0",
-                "product_version.submit_for_review",
-                this.getId().toString()
-            );
+        if (productVariants.isEmpty() || offers.isEmpty()) {
+            throw new ProductReadinessException(ProductReadinessFailure.NO_ACTIVE_VARIANT);
         }
 
         if (this.getDescription() == null || this.getDescription().isBlank()) {

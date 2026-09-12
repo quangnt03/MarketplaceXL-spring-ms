@@ -4,8 +4,6 @@ import static com.example.marketplace.product.ProductLifecycleFixtures.PRODUCT_I
 import static com.example.marketplace.product.ProductLifecycleFixtures.STORE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.example.marketplace.product_version.EProductVersionStatus;
-import java.lang.reflect.Field;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -15,12 +13,13 @@ import org.junit.jupiter.api.Test;
 class ProductTest {
 
     @Test
-    void ac01_createProductRetainsStoreOwnershipWithoutPublicationState() {
+    void ac01_createProductRetainsStoreOwnershipAndStartsActive() {
         Product product = Product.create(PRODUCT_ID, STORE_ID, "P1");
 
         assertThat(product.getId()).isEqualTo(PRODUCT_ID);
         assertThat(product.getStoreId()).isEqualTo(STORE_ID);
         assertThat(product.getProductCode()).isEqualTo("P1");
+        assertThat(product.getStatus()).isEqualTo(EProductStatus.ACTIVE);
         assertThat(product.getCurrentPublishedVersionId()).isNull();
     }
 }

@@ -1,5 +1,14 @@
 package com.example.marketplace.product;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
 import static com.example.marketplace.product.ProductLifecycleFixtures.EXTRA_OFFER_ID;
 import static com.example.marketplace.product.ProductLifecycleFixtures.EXTRA_VARIANT_ID;
 import static com.example.marketplace.product.ProductLifecycleFixtures.PRODUCT_ID;
@@ -9,19 +18,11 @@ import static com.example.marketplace.product.ProductLifecycleFixtures.activeVar
 import static com.example.marketplace.product.ProductLifecycleFixtures.completeDraftVersion;
 import static com.example.marketplace.product.ProductLifecycleFixtures.money;
 import static com.example.marketplace.product.ProductLifecycleFixtures.validOffers;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import com.example.marketplace.shared.exception.IllegalLifecycleTransitionException;
 import com.example.marketplace.product_variant_version.EProductVariantVersionStatus;
 import com.example.marketplace.product_variant_version.ProductVariantVersion;
 import com.example.marketplace.product_version.EProductVersionStatus;
 import com.example.marketplace.product_version.ProductVersion;
-import java.util.ArrayList;
-import java.util.List;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import com.example.marketplace.shared.exception.IllegalLifecycleTransitionException;
 
 /**
  * Product publication: coordinated IN_REVIEW to PUBLISHED transition and currentPublishedVersionId assignment.
@@ -71,6 +72,47 @@ class ProductPublicationTest {
                     .extracting(ProductVariantVersion::getPublicationStatus)
                     .containsOnly(EProductVariantVersionStatus.DRAFT);
             assertThat(product.getCurrentPublishedVersionId()).isNull();
+        }
+
+        @Test
+        void ac10_repeatedPublishIsRejectedWithoutMutation() {
+            Product product = Product.create(PRODUCT_ID, STORE_ID, "P1");
+            ProductVersion version = completeDraftVersion();
+            List<ProductVariantVersion> offers = validOffers();
+            version.submitForReview(activeVariants(), offers);
+            product.publish(version, offers);
+
+            assertThatThrownBy(() -> product.publish(version, offers))
+                    .isInstanceOfSatisfying(
+                            IllegalLifecycleTransitionException.class,
+                            ex -> {
+                                assertThat(ex.getSourceState()).isEqualTo("PUBLISHED");
+                                assertThat(ex.getAttemptedAction()).isEqualTo("PUBLISHED");
+                            });
+
+            assertThat(version.getPublicationStatus()).isEqualTo(EProductVersionStatus.PUBLISHED);
+            assertThat(offers)
+                    .extracting(ProductVariantVersion::getPublicationStatus)
+                    .containsOnly(EProductVariantVersionStatus.PUBLISHED);
+            assertThat(product.getCurrentPublishedVersionId()).isEqualTo(VERSION_ID);
+        }
+        
+        @Test
+        void ac10_repeatedApprovePublishOnVersionAloneIsRejectedWithoutMutation() {
+            ProductVersion version = completeDraftVersion();
+            List<ProductVariantVersion> offers = validOffers();
+            version.submitForReview(activeVariants(), offers);
+            version.approvePublish();
+
+            assertThatThrownBy(version::approvePublish)
+                    .isInstanceOfSatisfying(
+                            IllegalLifecycleTransitionException.class,
+                            ex -> {
+                                assertThat(ex.getEntityType()).isEqualTo("product_version");
+                                assertThat(ex.getSourceState()).isEqualTo("PUBLISHED");
+                            });
+
+            assertThat(version.getPublicationStatus()).isEqualTo(EProductVersionStatus.PUBLISHED);
         }
     }
 

@@ -1,10 +1,10 @@
 package com.example.marketplace.product;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import com.example.marketplace.product_variant.ProductVariant;
 import com.example.marketplace.product_variant_version.EProductVariantVersionStatus;
 import com.example.marketplace.shared.exception.IllegalLifecycleTransitionException;
 import com.example.marketplace.shared.exception.InvalidStatusOperationException;
@@ -58,6 +58,30 @@ public final class Product {
             EProductStatus.ARCHIVED,
             Set.of(EProductStatus.ACTIVE, EProductStatus.DISCONTINUED)
         );
+    }
+
+    public void submitVersionForReview(ProductVersion version, List<ProductVariant> variants, List<ProductVariantVersion> offers) {
+        if (this.getStatus() != EProductStatus.ACTIVE) {
+            throw new InvalidStatusOperationException(
+                "product",
+                this.getId(),
+                this.getStatus(),
+                "product_version_submit_for_review"
+            );
+        }
+
+        if (!version.getProductId().equals(this.getId())) {
+            throw new OwnershipMismatchException(
+                "product_version",
+                version.getId(),
+                "product",
+                this.getId(),
+                version.getProductId()
+            );
+        }
+
+        version.submitForReview(variants, offers);
+
     }
 
     public void publish(ProductVersion version, List<ProductVariantVersion> offers) {

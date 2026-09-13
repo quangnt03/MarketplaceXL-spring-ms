@@ -3,6 +3,8 @@ set -eu
 
 (
   cd backend
+  ./gradlew :marketplace-service:build
+  ./gradlew checkstyleMain pmdMain spotbugsMain
   ./gradlew :marketplace-service:test --no-daemon
 )
 

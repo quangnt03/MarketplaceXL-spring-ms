@@ -1,6 +1,7 @@
 plugins {
     id 'org.springframework.boot' version '4.1.1' apply false
     id 'io.spring.dependency-management' version '1.1.7' apply false
+    id 'com.github.spotbugs' version '6.5.11' apply false
 }
 
 allprojects {
@@ -14,7 +15,9 @@ allprojects {
 
 subprojects {
     apply plugin: 'java'
-    apply plugin: 'checkstyle' 
+    apply plugin: 'checkstyle'
+    apply plugin: 'pmd'
+    apply plugin: 'com.github.spotbugs'
 
     java {
         toolchain {
@@ -28,6 +31,42 @@ subprojects {
         configFile = rootProject.file("config/checkstyle/checkstyle.xml")
         maxWarnings = 0
         ignoreFailures = false
+    }
+
+    // pmd
+    pmd {
+        toolVersion = '7.27.0'
+        ruleSetFiles = files(rootProject.file("config/pmd/ruleset.xml"))
+        ruleSets = []
+        ignoreFailures = false
+    }
+
+    // spotbugs
+    spotbugs {
+        ignoreFailures = false
+        effort = 'max'
+        reportLevel = 'high'
+    }
+
+    tasks.withType(Checkstyle).configureEach {
+        reports {
+            xml.required = true
+            html.required = true
+        }
+    }
+
+    tasks.withType(Pmd).configureEach {
+        reports {
+            xml.required = true
+            html.required = true
+        }
+    }
+
+    tasks.withType(com.github.spotbugs.snom.SpotBugsTask).configureEach {
+        reports {
+            create("xml") { required = true }
+            create("html") { required = true }
+        }
     }
 
     tasks.withType(Test).configureEach {

@@ -4,6 +4,7 @@
 !.env.example
 !.env.local.example
 *.local
+.secrets
 
 # Logs and diagnostics
 *.log
@@ -81,3 +82,8 @@ nbdist/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# act for local gh workflow
+*/.actrc
+.actrc*
+act-events.json

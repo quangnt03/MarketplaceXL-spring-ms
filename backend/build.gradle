@@ -1,5 +1,5 @@
 plugins {
-    id 'org.springframework.boot' version '4.1.0' apply false
+    id 'org.springframework.boot' version '4.1.1' apply false
     id 'io.spring.dependency-management' version '1.1.7' apply false
 }
 
@@ -14,6 +14,7 @@ allprojects {
 
 subprojects {
     apply plugin: 'java'
+    apply plugin: 'checkstyle' 
 
     java {
         toolchain {
@@ -21,7 +22,23 @@ subprojects {
         }
     }
 
+    // checkstyle
+    checkstyle {
+        toolVersion = '13.4.2'
+        configFile = rootProject.file("config/checkstyle/checkstyle.xml")
+        maxWarnings = 0
+        ignoreFailures = false
+    }
+
     tasks.withType(Test).configureEach {
         useJUnitPlatform()
+
+        testLogging {
+            events "failed"
+            exceptionFormat "full"
+            showExceptions true
+            showCauses true
+            showStackTraces true
+        }
     }
 }

@@ -1,0 +1,141 @@
+# 1. workflow
+# setup env
+# pull code/ checkout
+# linting
+# build jar
+# unit / integration test
+# build image
+# security scan
+# push registry
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+# This workflow will build a Java project with Gradle and cache/restore any dependencies to improve the workflow execution time
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-gradle
+
+name: Gradle CI
+
+on:
+  push:
+    branches: ["main", "staging"]
+  pull_request:
+    branches: ["main", "staging"]
+    types:
+      - opened
+      - reopened
+      - synchronize
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: marketplace/services
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./backend
+
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up JDK 25
+        uses: actions/setup-java@v6
+        with:
+          java-version: "25"
+          distribution: "temurin"
+          architecture: x64
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        id: setup-gradle
+        with:
+          gradle-version: "9.5.1"
+          cache-provider: basic
+          cache-overwrite-existing: true
+          add-job-summary-as-pr-comment: "on-failure"
+
+      - name: Gradle execution permission
+        run: chmod +x ./gradlew
+      # latter, adding at least PMD and SpotBug
+      # - name: Checkstyle Linting
+      #   run: ./gradlew checkstyleMain
+
+      - name: Gradle test
+        run: ./gradlew test
+
+      - name: Gradle Build
+        run: ./gradlew build
+
+        # - name: Generate and submit dependency graph
+        #   uses: gradle/actions/dependency-submission@v6
+
+  docker-image:
+    runs-on: ubuntu-22.04
+    needs: [build]
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./backend
+    steps:
+      - uses: actions/checkout@v7
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GCR_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=stable,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=staging,enable=${{ github.ref == 'refs/heads/staging' }}
+            type=sha,prefix={{branch}}-
+          labels: |
+            environment=${{ github.ref == 'refs/heads/main' && 'stable' || 'staging' }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          push: true
+          context: ./backend
+          file: ./marketplace-service/Dockerfile
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  promote:
+    runs-on: ubuntu-22.04
+    needs: [build, docker-image]
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GCR_TOKEN }}
+      - name: Promote tested image to latest
+        run: |
+          docker buildx imagetools create \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.docker-image.outputs.image-digest }}

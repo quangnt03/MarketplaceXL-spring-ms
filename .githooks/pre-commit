@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+set -eu
+
+(
+  cd backend
+  ./gradlew :marketplace-service:test --no-daemon
+)
+
+(
+  cd frontend/web
+  pnpm test:unit
+)

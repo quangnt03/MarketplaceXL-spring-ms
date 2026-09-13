@@ -1,24 +1,32 @@
 package com.example.marketplace.product;
 
-import static com.example.marketplace.product.ProductLifecycleFixtures.*;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import com.example.marketplace.shared.exception.InvalidStatusOperationException;
-import com.example.marketplace.shared.exception.OwnershipMismatchException;
-import com.example.marketplace.product_variant_version.EProductVariantVersionStatus;
-import com.example.marketplace.product_variant_version.ProductVariantVersion;
-import com.example.marketplace.product_version.EProductVersionStatus;
-import com.example.marketplace.product_version.ProductVersion;
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import static com.example.marketplace.product.ProductLifecycleFixtures.OTHER_PRODUCT_ID;
+import static com.example.marketplace.product.ProductLifecycleFixtures.PRODUCT_ID;
+import static com.example.marketplace.product.ProductLifecycleFixtures.STORE_ID;
+import static com.example.marketplace.product.ProductLifecycleFixtures.VERSION_ID;
+import static com.example.marketplace.product.ProductLifecycleFixtures.activeVariants;
+import static com.example.marketplace.product.ProductLifecycleFixtures.completeDraftVersion;
+import static com.example.marketplace.product.ProductLifecycleFixtures.validOffers;
+import com.example.marketplace.product_variant_version.EProductVariantVersionStatus;
+import com.example.marketplace.product_variant_version.ProductVariantVersion;
+import com.example.marketplace.product_version.EProductVersionStatus;
+import com.example.marketplace.product_version.ProductVersion;
+import com.example.marketplace.shared.exception.InvalidStatusOperationException;
+import com.example.marketplace.shared.exception.OwnershipMismatchException;
+
 /**
- * Product's own availability status gates submission and publication of its children.
+ * Product's own availability status gates submission and publication of its
+ * children.
  * See specification.md decision log for this aggregate-boundary rule.
  */
 class ProductAvailabilityGateTest {
@@ -101,7 +109,8 @@ class ProductAvailabilityGateTest {
         switch (status) {
             case DISCONTINUED -> product.discontinue();
             case ARCHIVED -> product.archive();
-            case ACTIVE -> { }
+            case ACTIVE -> {
+            }
         }
     }
 }

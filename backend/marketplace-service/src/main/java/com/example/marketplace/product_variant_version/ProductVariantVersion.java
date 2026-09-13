@@ -4,8 +4,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.example.marketplace.money.Money;
-import com.example.marketplace.shared.exception.ProductReadinessException;
-import com.example.marketplace.shared.exception.ProductReadinessFailure;
 import com.example.marketplace.shared.state_management.LifecycleStateMachine;
 
 public final class ProductVariantVersion {
@@ -16,7 +14,7 @@ public final class ProductVariantVersion {
     private String displayName;
     private Money price;
     private int sortOrder;
-    private LifecycleStateMachine<EProductVariantVersionStatus> status;
+    private final LifecycleStateMachine<EProductVariantVersionStatus> status;
 
     public static ProductVariantVersion create(
         UUID id,

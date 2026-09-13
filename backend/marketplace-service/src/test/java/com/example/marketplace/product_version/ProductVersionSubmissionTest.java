@@ -14,6 +14,7 @@ import com.example.marketplace.product.Product;
 import static com.example.marketplace.product.ProductLifecycleFixtures.CATEGORY_ID;
 import static com.example.marketplace.product.ProductLifecycleFixtures.MEDIUM_VARIANT_ID;
 import static com.example.marketplace.product.ProductLifecycleFixtures.PRODUCT_ID;
+import static com.example.marketplace.product.ProductLifecycleFixtures.SMALL_SKU;
 import static com.example.marketplace.product.ProductLifecycleFixtures.SMALL_VARIANT_ID;
 import static com.example.marketplace.product.ProductLifecycleFixtures.STORE_ID;
 import static com.example.marketplace.product.ProductLifecycleFixtures.activeVariants;
@@ -149,7 +150,7 @@ class ProductVersionSubmissionTest {
                         "no active variant",
                         completeDraftVersion(),
                         List.of(discontinuedVariant()),
-                        List.of(validOffer(SMALL_VARIANT_ID, "BLACK-S", "100.00", 1)),
+                        List.of(validOffer(SMALL_VARIANT_ID, SMALL_SKU, "100.00", 1)),
                         ProductReadinessFailure.NO_ACTIVE_VARIANT),
                 Arguments.of(
                         "no variants or offers",
@@ -175,19 +176,19 @@ class ProductVersionSubmissionTest {
                         "zero price",
                         completeDraftVersion(),
                         activeVariants(),
-                        List.of(validOffer(SMALL_VARIANT_ID, "BLACK-S", "0.00", 1)),
+                        List.of(validOffer(SMALL_VARIANT_ID, SMALL_SKU, "0.00", 1)),
                         ProductReadinessFailure.INVALID_PRICE),
                 Arguments.of(
                         "negative price",
                         completeDraftVersion(),
                         activeVariants(),
-                        List.of(validOffer(SMALL_VARIANT_ID, "BLACK-S", "-1.00", 1)),
+                        List.of(validOffer(SMALL_VARIANT_ID, SMALL_SKU, "-1.00", 1)),
                         ProductReadinessFailure.INVALID_PRICE),
                 Arguments.of(
                         "null price",
                         completeDraftVersion(),
                         activeVariants(),
-                        List.of(offerWithPrice(SMALL_VARIANT_ID, "BLACK-S", null, 1)),
+                        List.of(offerWithPrice(SMALL_VARIANT_ID, SMALL_SKU, null, 1)),
                         ProductReadinessFailure.INVALID_PRICE));
     }
 }

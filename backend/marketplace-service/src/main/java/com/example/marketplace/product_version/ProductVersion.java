@@ -1,11 +1,19 @@
 package com.example.marketplace.product_version;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.example.marketplace.product_variant.EProductVariantStatus;
-import com.example.marketplace.shared.exception.*;
+import com.example.marketplace.shared.exception.OwnershipMismatchException;
+import com.example.marketplace.shared.exception.InvalidStatusOperationException;
+import com.example.marketplace.shared.exception.ProductReadinessException;
+import com.example.marketplace.shared.exception.ProductReadinessFailure;
 import com.example.marketplace.product_variant.ProductVariant;
 import com.example.marketplace.product_variant_version.ProductVariantVersion;
 import com.example.marketplace.shared.state_management.LifecycleStateMachine;
@@ -15,7 +23,7 @@ public final class ProductVersion {
     private UUID productId;
     private UUID categoryId;
     private int versionNumber;
-    private LifecycleStateMachine<EProductVersionStatus> publicationStatus;
+    private final LifecycleStateMachine<EProductVersionStatus> publicationStatus;
     private String productName;
     private String description;
     private List<String> mediaReferences;
@@ -114,14 +122,14 @@ public final class ProductVersion {
         AtomicBoolean hasActiveVariant = new AtomicBoolean(false);
 
         productVariants.forEach(productVariant -> {
-            if(productVariant.getStatus() == EProductVariantStatus.ACTIVE) {
+            if (productVariant.getStatus() == EProductVariantStatus.ACTIVE) {
                 hasActiveVariant.set(true);
             }
         });
         if (!hasActiveVariant.get()) {
             throw new ProductReadinessException(ProductReadinessFailure.NO_ACTIVE_VARIANT);
         }
-        HashSet<String> existingSku = new HashSet<>();
+        Set<String> existingSku = new HashSet<>();
         offers.forEach(variantVersion -> {
             if (variantVersion.getSku().isBlank()) {
                 throw new ProductReadinessException(ProductReadinessFailure.INVALID_SKU);
@@ -134,14 +142,15 @@ public final class ProductVersion {
             }
             existingSku.add(variantVersion.getSku().toLowerCase(Locale.ROOT));
             if (variantVersion.getPrice() == null
-                || variantVersion.getPrice().getAmount().compareTo(BigDecimal.ZERO) <= 0
+                || variantVersion.getPrice().amount().compareTo(BigDecimal.ZERO) <= 0
             ) {
                 throw new ProductReadinessException(ProductReadinessFailure.INVALID_PRICE);
             }
         });
 
 
-        HashMap<UUID, ProductVariant> productVariantExists = new HashMap<UUID, ProductVariant>();
+        @SuppressWarnings("PMD.LooseCoupling")
+        HashMap<UUID, ProductVariant> productVariantExists = new HashMap<>();
         productVariants.forEach(productVariant -> {
             // validate matched variant product id with version product id
             if (!productVariant.getProductId().equals(this.getProductId())) {
@@ -154,7 +163,7 @@ public final class ProductVersion {
                 );
             }
             // validate the variant is in valid state
-            if (!productVariant.getStatus().equals(EProductVariantStatus.ACTIVE)) {
+            if (productVariant.getStatus() != EProductVariantStatus.ACTIVE) {
                 throw new InvalidStatusOperationException(
                     "product_variant",
                     productVariant.getId(),

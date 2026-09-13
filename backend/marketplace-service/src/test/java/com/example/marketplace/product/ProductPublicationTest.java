@@ -31,6 +31,8 @@ import com.example.marketplace.shared.exception.IllegalLifecycleTransitionExcept
  */
 class ProductPublicationTest {
 
+    private static final String PUBLISHED_STATE = "PUBLISHED";
+
     @Nested
     @DisplayName("AC-09: publishing an IN_REVIEW version")
     class SuccessfulPublication {
@@ -65,7 +67,7 @@ class ProductPublicationTest {
             assertThatThrownBy(() -> product.publish(version, offers))
                     .isInstanceOf(IllegalLifecycleTransitionException.class)
                     .hasMessageContaining("DRAFT")
-                    .hasMessageContaining("PUBLISHED");
+                    .hasMessageContaining(PUBLISHED_STATE);
 
             assertThat(version.getPublicationStatus()).isEqualTo(EProductVersionStatus.DRAFT);
             assertThat(offers)
@@ -86,8 +88,8 @@ class ProductPublicationTest {
                     .isInstanceOfSatisfying(
                             IllegalLifecycleTransitionException.class,
                             ex -> {
-                                assertThat(ex.getSourceState()).isEqualTo("PUBLISHED");
-                                assertThat(ex.getAttemptedAction()).isEqualTo("PUBLISHED");
+                                assertThat(ex.getSourceState()).isEqualTo(PUBLISHED_STATE);
+                                assertThat(ex.getAttemptedAction()).isEqualTo(PUBLISHED_STATE);
                             });
 
             assertThat(version.getPublicationStatus()).isEqualTo(EProductVersionStatus.PUBLISHED);
@@ -109,7 +111,7 @@ class ProductPublicationTest {
                             IllegalLifecycleTransitionException.class,
                             ex -> {
                                 assertThat(ex.getEntityType()).isEqualTo("product_version");
-                                assertThat(ex.getSourceState()).isEqualTo("PUBLISHED");
+                                assertThat(ex.getSourceState()).isEqualTo(PUBLISHED_STATE);
                             });
 
             assertThat(version.getPublicationStatus()).isEqualTo(EProductVersionStatus.PUBLISHED);

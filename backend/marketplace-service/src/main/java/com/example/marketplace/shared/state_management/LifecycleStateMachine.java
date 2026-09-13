@@ -1,4 +1,5 @@
 package com.example.marketplace.shared.state_management;
+
 import java.util.Locale;
 import java.util.Set;
 import java.util.Objects;

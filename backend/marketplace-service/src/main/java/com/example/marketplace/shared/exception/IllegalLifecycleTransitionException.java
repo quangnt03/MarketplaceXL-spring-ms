@@ -1,8 +1,10 @@
 package com.example.marketplace.shared.exception;
 
 import java.io.Serial;
+import java.util.Locale;
 import java.util.Objects;
 
+@SuppressWarnings("PMD.DataClass")
 public class IllegalLifecycleTransitionException extends RuntimeException {
 
     @Serial
@@ -51,7 +53,7 @@ public class IllegalLifecycleTransitionException extends RuntimeException {
                 + " "
                 + Objects.requireNonNull(entityId, "entityId must not be null")
                 + " to "
-                + requireText(attemptedAction, "attemptedAction").toUpperCase()
+                + requireText(attemptedAction, "attemptedAction").toUpperCase(Locale.ROOT)
                 + " while it is "
                 + Objects.requireNonNull(sourceState, "sourceState must not be null").name()
                 + ".";

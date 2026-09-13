@@ -28,8 +28,10 @@ public final class ProductLifecycleFixtures {
     public static final UUID EXTRA_VARIANT_ID = UUID.fromString("00000000-0000-0000-0000-000000000011");
     public static final UUID EXTRA_OFFER_ID = UUID.fromString("00000000-0000-0000-0000-000000000012");
     public static final Currency USD = Currency.getInstance("USD");
+    public static final String SMALL_SKU = "BLACK-S";
+    public static final String MEDIUM_SKU = "BLACK-M";
 
-    private ProductLifecycleFixtures() {}
+    private ProductLifecycleFixtures() { }
 
     public static Money money(String amount) {
         return new Money(new BigDecimal(amount), USD);
@@ -47,20 +49,20 @@ public final class ProductLifecycleFixtures {
 
     public static List<ProductVariant> activeVariants() {
         return List.of(
-                ProductVariant.create(SMALL_VARIANT_ID, PRODUCT_ID, "BLACK-S"),
-                ProductVariant.create(MEDIUM_VARIANT_ID, PRODUCT_ID, "BLACK-M"));
+                ProductVariant.create(SMALL_VARIANT_ID, PRODUCT_ID, SMALL_SKU),
+                ProductVariant.create(MEDIUM_VARIANT_ID, PRODUCT_ID, MEDIUM_SKU));
     }
 
     public static ProductVariant discontinuedVariant() {
-        ProductVariant variant = ProductVariant.create(SMALL_VARIANT_ID, PRODUCT_ID, "BLACK-S");
+        ProductVariant variant = ProductVariant.create(SMALL_VARIANT_ID, PRODUCT_ID, SMALL_SKU);
         variant.discontinue();
         return variant;
     }
 
     public static List<ProductVariantVersion> validOffers() {
         return List.of(
-                validOffer(SMALL_VARIANT_ID, "BLACK-S", "100.00", 1),
-                validOffer(MEDIUM_VARIANT_ID, "BLACK-M", "110.00", 2));
+                validOffer(SMALL_VARIANT_ID, SMALL_SKU, "100.00", 1),
+                validOffer(MEDIUM_VARIANT_ID, MEDIUM_SKU, "110.00", 2));
     }
 
     public static ProductVariantVersion validOffer(UUID variantId, String sku, String amount, int sortOrder) {

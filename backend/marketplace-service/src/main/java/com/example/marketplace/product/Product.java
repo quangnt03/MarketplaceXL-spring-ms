@@ -18,8 +18,11 @@ public final class Product {
     private UUID storeId;
     private String productName;
     private String productCode;
-    private LifecycleStateMachine<EProductStatus> status;
+    private final LifecycleStateMachine<EProductStatus> status;
     private UUID currentPublishedVersionId;
+
+    private static final String ENTITY_TYPE_PRODUCT = "product";
+    private static final String ENTITY_TYPE_PRODUCT_VERSION = "product_version";
 
     public static Product create(UUID productId, UUID storeId, String productCode) {
         return new Product(
@@ -32,7 +35,7 @@ public final class Product {
     private Product(UUID id, UUID storeId, String productCode) {
         this.setId(id);
         this.status = new LifecycleStateMachine<EProductStatus>(
-            "product", id, EProductStatus.ACTIVE
+            ENTITY_TYPE_PRODUCT, id, EProductStatus.ACTIVE
         );
         this.setPublishedVersionId(null);
         this.setStoreId(storeId);
@@ -60,10 +63,14 @@ public final class Product {
         );
     }
 
-    public void submitVersionForReview(ProductVersion version, List<ProductVariant> variants, List<ProductVariantVersion> offers) {
+    public void submitVersionForReview(
+        ProductVersion version,
+        List<ProductVariant> variants,
+        List<ProductVariantVersion> offers
+    ) {
         if (this.getStatus() != EProductStatus.ACTIVE) {
             throw new InvalidStatusOperationException(
-                "product",
+                ENTITY_TYPE_PRODUCT,
                 this.getId(),
                 this.getStatus(),
                 "product_version_submit_for_review"
@@ -72,9 +79,9 @@ public final class Product {
 
         if (!version.getProductId().equals(this.getId())) {
             throw new OwnershipMismatchException(
-                "product_version",
+                ENTITY_TYPE_PRODUCT_VERSION,
                 version.getId(),
-                "product",
+                ENTITY_TYPE_PRODUCT,
                 this.getId(),
                 version.getProductId()
             );
@@ -91,7 +98,7 @@ public final class Product {
             throw new OwnershipMismatchException(
                 "product_variant_version",
                 pseudoChildIdObj,
-                "product_version",
+                ENTITY_TYPE_PRODUCT_VERSION,
                 version.getId().toString(),
                 version.getId().toString()
             );
@@ -99,7 +106,7 @@ public final class Product {
 
         if (this.getStatus() != EProductStatus.ACTIVE) {
             throw new InvalidStatusOperationException(
-                "product",
+                ENTITY_TYPE_PRODUCT,
                 this.getId(),
                 this.getStatus(),
                 "product_publish"
@@ -108,9 +115,9 @@ public final class Product {
 
         if (!version.getProductId().equals(this.getId())) {
             throw new OwnershipMismatchException(
-                "product_version",
+                ENTITY_TYPE_PRODUCT_VERSION,
                 version.getId(),
-                "product",
+                ENTITY_TYPE_PRODUCT,
                 this.getId(),
                 version.getProductId()
             );
@@ -121,7 +128,7 @@ public final class Product {
                 throw new OwnershipMismatchException(
                     "product_variant_version",
                     variantVersion.getId(),
-                    "product_version",
+                    ENTITY_TYPE_PRODUCT_VERSION,
                     version.getId(),
                     variantVersion.getProductVersionId()
                 );

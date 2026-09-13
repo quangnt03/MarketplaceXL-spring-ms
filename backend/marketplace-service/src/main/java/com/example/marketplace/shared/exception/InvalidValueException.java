@@ -1,8 +1,14 @@
 package com.example.marketplace.shared.exception;
 
+import java.io.Serial;
 import java.util.Objects;
 
-public class InvalidValueException extends IllegalArgumentException{
+@SuppressWarnings("PMD.DataClass")
+public class InvalidValueException extends IllegalArgumentException {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     private final String argument;
     private final String constraints;
     private final String domainType;

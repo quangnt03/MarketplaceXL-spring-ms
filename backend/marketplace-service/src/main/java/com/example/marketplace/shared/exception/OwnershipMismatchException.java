@@ -2,6 +2,7 @@ package com.example.marketplace.shared.exception;
 
 import java.util.Objects;
 
+@SuppressWarnings("PMD.DataClass")
 public class OwnershipMismatchException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;

@@ -5,6 +5,7 @@ import static com.example.marketplace.product.ProductLifecycleFixtures.OTHER_PRO
 import static com.example.marketplace.product.ProductLifecycleFixtures.OTHER_VERSION_ID;
 import static com.example.marketplace.product.ProductLifecycleFixtures.PRODUCT_ID;
 import static com.example.marketplace.product.ProductLifecycleFixtures.SMALL_OFFER_ID;
+import static com.example.marketplace.product.ProductLifecycleFixtures.SMALL_SKU;
 import static com.example.marketplace.product.ProductLifecycleFixtures.SMALL_VARIANT_ID;
 import static com.example.marketplace.product.ProductLifecycleFixtures.STORE_ID;
 import static com.example.marketplace.product.ProductLifecycleFixtures.VERSION_ID;
@@ -45,8 +46,8 @@ class ProductOwnershipTest {
     @DisplayName("AC-11 rejects: variant belongs to another product")
     void ac11_submitRejectsVariantBelongingToAnotherProduct() {
         ProductVersion version = completeDraftVersion();
-        List<ProductVariant> variants = List.of(ProductVariant.create(SMALL_VARIANT_ID, OTHER_PRODUCT_ID, "BLACK-S"));
-        List<ProductVariantVersion> offers = List.of(validOffer(SMALL_VARIANT_ID, "BLACK-S", "100.00", 1));
+        List<ProductVariant> variants = List.of(ProductVariant.create(SMALL_VARIANT_ID, OTHER_PRODUCT_ID, SMALL_SKU));
+        List<ProductVariantVersion> offers = List.of(validOffer(SMALL_VARIANT_ID, SMALL_SKU, "100.00", 1));
 
         assertThatThrownBy(() -> version.submitForReview(variants, offers))
                 .isInstanceOf(OwnershipMismatchException.class);
@@ -60,7 +61,7 @@ class ProductOwnershipTest {
                 SMALL_OFFER_ID,
                 OTHER_VERSION_ID,
                 SMALL_VARIANT_ID,
-                "BLACK-S",
+                SMALL_SKU,
                 "Black / Small",
                 money("100.00"),
                 1));
@@ -92,7 +93,7 @@ class ProductOwnershipTest {
                         SMALL_OFFER_ID,
                         OTHER_VERSION_ID,
                         SMALL_VARIANT_ID,
-                        "BLACK-S",
+                        SMALL_SKU,
                         "Black / Small",
                         money("100.00"),
                         1));

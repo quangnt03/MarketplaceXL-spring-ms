@@ -8,8 +8,6 @@ import com.example.marketplace.shared.state_management.LifecycleStateMachine;
 
 public final class Inventory {
     private UUID id;
-    private UUID tenantId;
-    private UUID storeId;
     private UUID productId;
     private UUID variantId;
 

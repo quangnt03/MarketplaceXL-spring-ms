@@ -7,14 +7,14 @@ import com.example.marketplace.inventory.Inventory;
 import com.example.marketplace.shared.exception.DuplicateInventoryException;
 import com.example.marketplace.shared.state_management.LifecycleStateMachine;
 
-public class ProductVariant {
+public final class ProductVariant {
     private UUID id;
     private UUID productId;
     private UUID tenantId;
     private UUID storeId;
     private String variantCode;
     private Inventory inventory;
-    private LifecycleStateMachine<EProductVariantStatus> publicationStatus;
+    private final LifecycleStateMachine<EProductVariantStatus> publicationStatus;
 
     public static ProductVariant create(UUID id, UUID productId, String variantCode) {
         return new ProductVariant(id, productId, variantCode);
@@ -23,7 +23,7 @@ public class ProductVariant {
     private ProductVariant(UUID id, UUID productId, String variantCode) {
         this.setProductId(productId);
         this.setId(id);
-        this.publicationStatus = new LifecycleStateMachine<EProductVariantStatus>(
+        this.publicationStatus = new LifecycleStateMachine<>(
             "product_variant", id, EProductVariantStatus.ACTIVE
         );
         this.setVariantCode(variantCode);
@@ -72,11 +72,11 @@ public class ProductVariant {
         return inventory;
     }
 
-    public UUID getId() {
+    public final UUID getId() {
         return id;
     }
 
-    public void setId(UUID id) {
+    public final void setId(UUID id) {
         this.id = id;
     }
 
@@ -84,7 +84,7 @@ public class ProductVariant {
         return productId;
     }
 
-    public void setProductId(UUID productId) {
+    public final void setProductId(UUID productId) {
         this.productId = productId;
     }
 
@@ -92,7 +92,7 @@ public class ProductVariant {
         return storeId;
     }
 
-    public void setStoreId(UUID storeId) {
+    public final void setStoreId(UUID storeId) {
         this.storeId = storeId;
     }
 
@@ -100,7 +100,7 @@ public class ProductVariant {
         return tenantId;
     }
 
-    public void setTenantId(UUID tenantId) {
+    public final void setTenantId(UUID tenantId) {
         this.tenantId = tenantId;
     }
 
@@ -108,7 +108,7 @@ public class ProductVariant {
         return variantCode;
     }
 
-    public void setVariantCode(String variantCode) {
+    public final void setVariantCode(String variantCode) {
         this.variantCode = variantCode;
     }
 

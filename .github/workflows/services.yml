@@ -36,7 +36,6 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: read
-
     defaults:
       run:
         shell: bash
@@ -50,7 +49,6 @@ jobs:
           java-version: "25"
           distribution: "temurin"
           architecture: x64
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
         id: setup-gradle
@@ -59,22 +57,26 @@ jobs:
           cache-provider: basic
           cache-overwrite-existing: true
           add-job-summary-as-pr-comment: "on-failure"
-
       - name: Gradle execution permission
         run: chmod +x ./gradlew
-      # latter, adding at least PMD and SpotBug
-      # - name: Checkstyle Linting
-      #   run: ./gradlew checkstyleMain
-
+      - name: Linting and code quality
+        run: ./gradlew checkstyleMain pmdMain spotbogsMains
       - name: Gradle test
         run: ./gradlew test
 
       - name: Gradle Build
         run: ./gradlew build
 
-        # - name: Generate and submit dependency graph
-        #   uses: gradle/actions/dependency-submission@v6
-
+      - name: Upload code quality reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: code-quality-reports-${{ github.run_id }}
+          path: |
+            backend/marketplace-service/build/reports/checkstyle/
+            backend/marketplace-service/build/reports/pmd/
+            backend/marketplace-service/build/reports/spotbugs/
+          retention-days: 7
   docker-image:
     runs-on: ubuntu-22.04
     needs: [build]
@@ -120,6 +122,15 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+      - name: Trivi image scanning
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH' 
   promote:
     runs-on: ubuntu-22.04
     needs: [build, docker-image]

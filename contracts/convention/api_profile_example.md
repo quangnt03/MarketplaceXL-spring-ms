@@ -39,7 +39,7 @@ Follow `contracts/convention/api-conventions.md` and `docs/md/09_api_endpoint_de
 ## Acceptance Criteria
 
 - [ ] Paths use plural nouns and contain no operation verbs.
-- [ ] Paths are unversioned and do not use `/api` as a base path.
+- [ ] Paths use the `/api/v{major}` base path and nest at most three resource levels.
 - [ ] Path segments use kebab-case.
 - [ ] Query parameters and JSON properties use snake_case.
 - [ ] HTTP methods and status codes follow RFC 9110.

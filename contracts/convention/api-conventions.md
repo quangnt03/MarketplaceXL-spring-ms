@@ -38,6 +38,7 @@ It is independent of the OpenAPI format version and the deployed application ver
 
 Paths MUST model business resources rather than controller methods or user interface actions.
 
+- Prefix every path with the base path `/api/v{major}`, for example `/api/v1/products/{product_id}`.
 - Use plural, domain-specific resource names such as `/products`, `/orders`, and `/access-grants`.
 - Use kebab-case for path segments.
 - Use URL-safe, stable resource identifiers.
@@ -46,16 +47,21 @@ Paths MUST model business resources rather than controller methods or user inter
 - Do not use a trailing slash.
 - Do not create empty path segments.
 - Keep paths verb-free.
-- Prefer no more than two nested resource levels.
-- Do not use `/api` as a base path.
-- Do not put a version in the URL.
+- Use at most three nested resource levels, for example `/stores/{store_id}/products/{product_id}/variants`; the `/api/v{major}` base path does not count as a level.
+
+Examples in this document omit the `/api/v{major}` base path unless it matters to the rule.
 
 Model a business action as a resource or state transition.
 For example, use `POST /checkouts` to create a checkout and `PATCH /products/{product_id}` to change publication status.
 Do not create paths such as `/cart/checkout` or `/products/{product_id}/publish`.
 
-Avoid versioning while compatible evolution is possible.
-If incompatible versioning becomes unavoidable, use media type versioning and obtain consumer approval.
+## Versioning
+
+The URL carries only the API's major version, as the `v{major}` segment of the base path.
+Evolve a major version compatibly for as long as possible; compatible changes never change the URL.
+Increment the major version only for an incompatible change that cannot be avoided, obtain consumer approval, and serve the previous major version alongside the new one until its consumers have migrated.
+Do not put minor or patch versions in the URL, and do not use media type versioning.
+The URL major version is independent of the OpenAPI `info.version`, which versions the contract document with semantic versioning.
 
 ## HTTP Methods and Status Codes
 
@@ -86,7 +92,10 @@ The common client error mapping is:
 | `404 Not Found` | The resource is absent or intentionally concealed from the caller |
 | `409 Conflict` | The request conflicts with current resource state or a uniqueness rule |
 | `412 Precondition Failed` | An `If-Match` or other HTTP precondition failed |
+| `422 Unprocessable Content` | The request is well-formed, but its content cannot be processed under the current business rules |
+| `428 Precondition Required` | The operation requires a conditional header such as `If-Match` and the request omitted it |
 | `429 Too Many Requests` | A rate limit was exceeded |
+| `503 Service Unavailable` | A required dependency is temporarily unavailable; include `Retry-After` |
 
 Do not return `200 OK` with an embedded error.
 Do not invent application-specific HTTP status codes.
@@ -126,7 +135,9 @@ Use these query parameters:
 - domain-specific snake_case names for filters.
 
 The default and maximum `limit` MUST be documented per operation.
+Unless an operation documents otherwise, `limit` defaults to 20 and accepts 1 to 100; a value outside that range returns `400 Bad Request` rather than being clamped.
 The cursor MUST be opaque to clients and bound to the effective filters and ordering.
+A malformed or tampered cursor, or a cursor reused with different filters or ordering, returns `400 Bad Request`.
 The sort order MUST be deterministic and include a unique tie-breaker.
 Offset pagination requires a documented user need and API review approval.
 
@@ -136,8 +147,8 @@ Use this response shape:
 {
   "products": [],
   "pagination": {
-    "self": "https://marketplace.example/products?limit=20",
-    "next": "https://marketplace.example/products?limit=20&cursor=opaque"
+    "self": "https://marketplace.example/api/v1/products?limit=20",
+    "next": "https://marketplace.example/api/v1/products?limit=20&cursor=opaque"
   }
 }
 ```
@@ -204,6 +215,7 @@ The contract MUST document idempotency key scope, retention, and replay behavior
 
 Use `ETag` and `If-Match` for user-visible concurrent updates when lost updates are possible.
 Return `412 Precondition Failed` when the supplied representation version is stale.
+When an operation requires `If-Match` and the request omits it, return `428 Precondition Required`.
 
 Operations that require atomic state changes MUST share one service-layer transaction.
 This includes checkout, webhook processing, access-grant creation, review creation, and product publication.
@@ -226,7 +238,7 @@ Published APIs MUST remain backward compatible.
 Compatible changes normally include adding optional response properties, adding optional request properties with defaults, and adding new operations.
 Breaking changes include removing or renaming properties, making optional input required, changing property types or semantics, narrowing accepted input, changing authorization in a way that rejects existing clients, and changing status-code behavior clients rely on.
 
-Do not use URL versioning to escape compatibility review.
+Do not increment the URL major version to escape compatibility review.
 When deprecating an operation or property, mark it `deprecated: true` in OpenAPI, identify affected consumers, agree on a migration period, and use `Deprecation` and `Sunset` headers where applicable.
 
 ## Approved Exceptions
@@ -245,7 +257,7 @@ Marketplace equivalents defined here take their place.
 ## Review Checklist
 
 - [ ] The resource model is based on business resources and contains no action path.
-- [ ] The path is plural, kebab-case, unversioned, and has no trailing slash.
+- [ ] The path uses the `/api/v{major}` base path, is plural and kebab-case, nests at most three resource levels, and has no trailing slash.
 - [ ] Query parameters and JSON properties use snake_case.
 - [ ] HTTP method, safety, idempotency, and status codes are correct.
 - [ ] Inputs, outputs, headers, examples, and all expected errors are explicit.

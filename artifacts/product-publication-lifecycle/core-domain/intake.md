@@ -4,6 +4,7 @@
 
 - **Feature name:** Product Publication Lifecycle Domain Slice
 - **Feature slug:** `product-publication-lifecycle`
+- **Phase:** `core-domain` (Phase 1)
 - **Branch checked out:** `feature/product_lifecycle`
 - **Requested by:** Marketplace product owner
 - **Target milestone:** Milestone 3: Product and Storefront

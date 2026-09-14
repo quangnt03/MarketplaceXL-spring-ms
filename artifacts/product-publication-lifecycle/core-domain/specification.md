@@ -4,9 +4,10 @@
 
 - **Status:** Draft
 - **Feature slug:** `product-publication-lifecycle`
+- **Phase:** `core-domain` (Phase 1); continued by [application-integration](../application-integration/specification.md) (Phase 2)
 - **Branch:** `feature/product_lifecycle`
 - **Intake:** [intake.md](./intake.md)
-- **Relevant source docs:** [MVP scope](../../docs/md/01_mvp_scope.md), [transactions and state](../../docs/md/05_transactions_and_state.md), [implementation roadmap](../../docs/md/06_implementation_roadmap.md), [testing plan](../../docs/md/07_testing_plan.md), [class model](../../docs/diagrams/class.mmd)
+- **Relevant source docs:** [MVP scope](../../../docs/md/01_mvp_scope.md), [transactions and state](../../../docs/md/05_transactions_and_state.md), [implementation roadmap](../../../docs/md/06_implementation_roadmap.md), [testing plan](../../../docs/md/07_testing_plan.md), [class model](../../../docs/diagrams/class.mmd)
 - **Owners:** User - product decisions; Agent - specification, tests, and implementation
 
 ## 1. Goal and Scope

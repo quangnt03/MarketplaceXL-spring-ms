@@ -33,7 +33,7 @@ Focus testing on correctness risks:
 |---|---|
 | Create store | Store and merchant membership created |
 | Create product under store | Product contains correct tenant ID |
-| Merchant A edits Merchant B product | 403 Forbidden |
+| Merchant A edits Merchant B product | 404 Not Found (existence concealed) |
 | Search products | Only published products from active stores returned |
 | Add unpublished product to cart | Request rejected |
 | Create checkout from valid cart | Pending order and payment created |
@@ -51,9 +51,9 @@ Focus testing on correctness risks:
 | Endpoint | Scenario | Expected Result |
 |---|---|---|
 | GET `/api/v1/products` | Public search | Published products returned |
-| POST `/api/v1/merchant/products` | Merchant creates product | Product created |
-| PATCH `/api/v1/merchant/products/{id}` | Merchant updates own product | Product updated |
-| PATCH `/api/v1/merchant/products/{id}` | Merchant updates another tenant product | 403 Forbidden |
+| POST `/api/v1/stores/{store_id}/products` | Merchant creates product in own store | Product created |
+| PATCH `/api/v1/products/{product_id}` | Merchant updates own product | Product updated |
+| PATCH `/api/v1/products/{product_id}` | Merchant updates another tenant product | 404 Not Found |
 | POST `/api/v1/cart/items` | Buyer adds published product | Item added |
 | POST `/api/v1/cart/checkout` | Buyer checks out cart | Checkout URL returned |
 | POST `/api/v1/payments/webhook/stripe` | Valid payment success | Order paid |
@@ -120,7 +120,7 @@ Expected result:
 |---|---|---|
 | Auth | Unauthenticated user opens merchant dashboard | Redirect or 401 |
 | RBAC | Buyer calls admin API | 403 Forbidden |
-| Tenant isolation | Merchant modifies another merchant product | 403 Forbidden |
+| Tenant isolation | Merchant modifies another merchant product | 404 Not Found |
 | Private file | Buyer guesses file URL | Access denied |
 | Webhook | Invalid signature | Request rejected |
 | Review | Non-purchaser creates review | 403 Forbidden |

@@ -1,5 +1,1644 @@
 openapi: 3.1.0
 info:
   title: Marketplace API
-  version: 0.0.1
-paths: {}
+  description: >-
+    REST API for the Marketplace Platform, covering merchant product publication,
+    storefront discovery, checkout, and related marketplace operations.
+  version: 0.1.0
+  contact:
+    name: Marketplace Platform Team
+    email: ntq20803@gmail.com
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Marketplace-Proprietary
+  x-api-id: marketplace-api
+  x-audience: internal
+servers:
+  - url: /api/v1
+    description: Current major version of the Marketplace API.
+tags:
+  - name: Products
+    description: Product identity and lifecycle status.
+  - name: Variants
+    description: Stable, sellable variant identities of a product.
+  - name: Inventory
+    description: On-hand and reserved stock for a product variant.
+  - name: Versions
+    description: Versioned product content, offers, and publication status.
+paths:
+  /stores/{store_id}/products:
+    post:
+      operationId: createProduct
+      tags: [Products]
+      summary: Create a product for a store
+      description: >-
+        Creates a product owned by the addressed store.
+        The tenant is copied from the store row; it is never accepted from the client.
+        Acceptance criteria: AC-01, AC-02, AC-09.
+        Cross-cutting on every response: AC-18 (401), AC-19 (403), AC-20 (404 for a
+        non-member or unknown store), AC-22 (problem contract), AC-23 (contract validation).
+      security:
+        - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/StoreId'
+        - $ref: '#/components/parameters/XFlowIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+            example:
+              product_code: SUMMER-TEE
+      responses:
+        '201':
+          description: Product created. AC-01.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+              example:
+                id: 8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+                store_id: 3b3ecb1e-9c7e-4b3d-8f0f-8f2e6c9f2b11
+                product_code: SUMMER-TEE
+                status: ACTIVE
+                current_published_version_id: null
+                created_at: '2026-09-14T08:00:00Z'
+                modified_at: '2026-09-14T08:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A product with this code already exists in this store. AC-02.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: 'urn:marketplace:problem:duplicate-resource'
+                title: Duplicate resource
+                status: 409
+                detail: A resource with this identifying field already exists.
+                instance: /api/v1/stores/3b3ecb1e-9c7e-4b3d-8f0f-8f2e6c9f2b11/products
+                field: product_code
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /products/{product_id}:
+    get:
+      operationId: getProduct
+      tags: [Products]
+      summary: Read a product
+      description: >-
+        Returns the product's identity, lifecycle status, and current published version pointer.
+        Supports the main flow (section 4, step 9).
+        Cross-cutting on every response: AC-18 (401), AC-19 (403), AC-20 (404 for a non-member),
+        AC-22 (problem contract), AC-23 (contract validation).
+      security:
+        - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+        - $ref: '#/components/parameters/XFlowIdHeader'
+      responses:
+        '200':
+          description: Product found.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+              example:
+                id: 8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+                store_id: 3b3ecb1e-9c7e-4b3d-8f0f-8f2e6c9f2b11
+                product_code: SUMMER-TEE
+                status: ACTIVE
+                current_published_version_id: 1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+                created_at: '2026-09-14T08:00:00Z'
+                modified_at: '2026-09-14T09:30:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    patch:
+      operationId: updateProductStatus
+      tags: [Products]
+      summary: Change a product's lifecycle status
+      description: >-
+        Applies an explicit status transition (resumeSelling, discontinue, or archive).
+        Acceptance criteria: AC-16, AC-17, AC-09.
+        Cross-cutting on every response: AC-18 (401), AC-19 (403), AC-20 (404 for a non-member),
+        AC-22 (problem contract), AC-23 (contract validation).
+      security:
+        - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+        - $ref: '#/components/parameters/XFlowIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductStatusRequest'
+            example:
+              status: DISCONTINUED
+      responses:
+        '200':
+          description: Status updated. AC-16.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+              example:
+                id: 8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+                store_id: 3b3ecb1e-9c7e-4b3d-8f0f-8f2e6c9f2b11
+                product_code: SUMMER-TEE
+                status: DISCONTINUED
+                current_published_version_id: null
+                created_at: '2026-09-14T08:00:00Z'
+                modified_at: '2026-09-14T10:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: >-
+            The requested status is not reachable from the product's current status
+            (illegal-lifecycle-transition), or the update conflicts with a concurrent
+            write (concurrent-modification). AC-16.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: 'urn:marketplace:problem:illegal-lifecycle-transition'
+                title: Illegal lifecycle transition
+                status: 409
+                detail: The requested status is not reachable from the current status.
+                instance: /api/v1/products/8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+                entity_type: product
+                current_state: ARCHIVED
+                attempted_action: resumeSelling
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /products/{product_id}/variants:
+    post:
+      operationId: createProductVariant
+      tags: [Variants]
+      summary: Create a variant identity for a product
+      description: >-
+        Creates a stable variant identity, separate from its versioned content in a
+        product version's offers.
+        Acceptance criteria: AC-03, AC-09.
+        Cross-cutting on every response: AC-18 (401), AC-19 (403), AC-20 (404 for a non-member),
+        AC-22 (problem contract), AC-23 (contract validation).
+      security:
+        - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+        - $ref: '#/components/parameters/XFlowIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVariantRequest'
+            example:
+              variant_code: BLACK-S
+      responses:
+        '201':
+          description: Variant created. AC-03.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VariantResponse'
+              example:
+                id: 2a2b3c4d-5e6f-4a5b-8c9d-0e1f2a3b4c5d
+                product_id: 8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+                variant_code: BLACK-S
+                status: ACTIVE
+                created_at: '2026-09-14T08:05:00Z'
+                modified_at: '2026-09-14T08:05:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A variant with this code already exists on this product. AC-03.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: 'urn:marketplace:problem:duplicate-resource'
+                title: Duplicate resource
+                status: 409
+                detail: A resource with this identifying field already exists.
+                instance: /api/v1/products/8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f/variants
+                field: variant_code
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    get:
+      operationId: listProductVariants
+      tags: [Variants]
+      summary: List a product's variants
+      description: >-
+        Returns a cursor-paginated, keyset-ordered page of the product's variants.
+        Acceptance criteria: AC-30, AC-32.
+        Cross-cutting on every response: AC-18 (401), AC-19 (403), AC-20 (404 for a non-member),
+        AC-22 (problem contract), AC-23 (contract validation).
+      security:
+        - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+        - $ref: '#/components/parameters/XFlowIdHeader'
+        - $ref: '#/components/parameters/VariantStatusFilter'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Page of variants. AC-30.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VariantPageResponse'
+              example:
+                variants:
+                  - id: 2a2b3c4d-5e6f-4a5b-8c9d-0e1f2a3b4c5d
+                    product_id: 8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+                    variant_code: BLACK-S
+                    status: ACTIVE
+                    created_at: '2026-09-14T08:05:00Z'
+                    modified_at: '2026-09-14T08:05:00Z'
+                pagination:
+                  self: https://marketplace.example/api/v1/products/8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f/variants?limit=20
+        '400':
+          description: >-
+            The `limit`, `sort`, filter, or `cursor` is invalid, malformed, tampered,
+            or reused with different filters or ordering. AC-32.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: 'urn:marketplace:problem:validation-failed'
+                title: Request validation failed
+                status: 400
+                detail: One or more request fields are invalid.
+                instance: /api/v1/products/8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f/variants
+                errors:
+                  - code: OUT_OF_RANGE
+                    field: limit
+                    detail: limit must be between 1 and 100.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /product-variants/{variant_id}/inventory:
+    put:
+      operationId: initializeVariantInventory
+      tags: [Inventory]
+      summary: Initialize or replay inventory for a variant
+      description: >-
+        Initializes exactly one inventory record for the variant.
+        An identical repeat of an already-initialized body is idempotent and returns
+        200; a differing body is rejected.
+        Acceptance criteria: AC-04, AC-26, AC-09.
+        Cross-cutting on every response: AC-18 (401), AC-19 (403), AC-20 (404 for a non-member),
+        AC-22 (problem contract), AC-23 (contract validation).
+      security:
+        - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VariantId'
+        - $ref: '#/components/parameters/XFlowIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitializeInventoryRequest'
+            example:
+              quantity_on_hand: 20
+              reorder_level: 5
+      responses:
+        '201':
+          description: Inventory initialized for the first time. AC-04, AC-26.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryResponse'
+              example:
+                product_variant_id: 2a2b3c4d-5e6f-4a5b-8c9d-0e1f2a3b4c5d
+                quantity_on_hand: 20
+                quantity_reserved: 0
+                reorder_level: 5
+                status: ACTIVE
+        '200':
+          description: Identical replay of the already-initialized inventory. AC-04.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryResponse'
+              example:
+                product_variant_id: 2a2b3c4d-5e6f-4a5b-8c9d-0e1f2a3b4c5d
+                quantity_on_hand: 20
+                quantity_reserved: 0
+                reorder_level: 5
+                status: ACTIVE
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Inventory already exists for this variant with a different body. AC-04.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: 'urn:marketplace:problem:inventory-already-initialized'
+                title: Inventory already initialized
+                status: 409
+                detail: Inventory for this variant is already initialized with a different value.
+                instance: /api/v1/product-variants/2a2b3c4d-5e6f-4a5b-8c9d-0e1f2a3b4c5d/inventory
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /product-versions:
+    post:
+      operationId: createProductVersion
+      tags: [Versions]
+      summary: Create a draft version
+      description: >-
+        Creates version 1 of the product identified by the body's `product_id` in
+        `DRAFT`.
+        A product may hold only one version in this phase; a second attempt is rejected.
+        This resource is addressed flat under `/product-versions`; the owning product
+        is a body field rather than a path segment.
+        Acceptance criteria: AC-05.
+        Cross-cutting on every response: AC-18 (401), AC-19 (403), AC-20 (404 for a non-member),
+        AC-22 (problem contract), AC-23 (contract validation).
+      security:
+        - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XFlowIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductVersionRequest'
+            example:
+              product_id: 8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+      responses:
+        '201':
+          description: Draft version created. AC-05.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductVersionResponse'
+              example:
+                id: 1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+                product_id: 8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+                version_number: 1
+                publication_status: DRAFT
+                name: null
+                description: null
+                category_id: null
+                media_references: []
+                offers: []
+                created_at: '2026-09-14T08:10:00Z'
+                modified_at: '2026-09-14T08:10:00Z'
+                published_at: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The product already has a version. AC-05.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: 'urn:marketplace:problem:invalid-status-operation'
+                title: Invalid status operation
+                status: 409
+                detail: This operation is not permitted given the current status.
+                instance: /api/v1/product-versions
+                entity_type: product
+                current_status: ACTIVE
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    get:
+      operationId: listProductVersions
+      tags: [Versions]
+      summary: List a product's versions
+      description: >-
+        Returns a cursor-paginated, keyset-ordered page of version summaries for the
+        product identified by the required `product_id` query parameter.
+        Acceptance criteria: AC-31, AC-32.
+        Cross-cutting on every response: AC-18 (401), AC-19 (403), AC-20 (404 for a non-member),
+        AC-22 (problem contract), AC-23 (contract validation).
+      security:
+        - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductIdQuery'
+        - $ref: '#/components/parameters/XFlowIdHeader'
+        - $ref: '#/components/parameters/VersionPublicationStatusFilter'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: Page of version summaries. AC-31.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductVersionPageResponse'
+              example:
+                versions:
+                  - id: 1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+                    product_id: 8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+                    version_number: 1
+                    publication_status: DRAFT
+                    created_at: '2026-09-14T08:10:00Z'
+                    modified_at: '2026-09-14T08:10:00Z'
+                    published_at: null
+                pagination:
+                  self: https://marketplace.example/api/v1/product-versions?product_id=8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f&limit=20
+        '400':
+          description: >-
+            The `product_id`, `limit`, `sort`, `publication_status`, or `cursor` is
+            missing, invalid, malformed, tampered, or reused with different filters
+            or ordering. AC-32.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: 'urn:marketplace:problem:validation-failed'
+                title: Request validation failed
+                status: 400
+                detail: One or more request fields are invalid.
+                instance: /api/v1/product-versions
+                errors:
+                  - code: UNKNOWN_VALUE
+                    field: publication_status
+                    detail: publication_status must be one of the documented values.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /product-versions/{version_id}:
+    get:
+      operationId: getProductVersion
+      tags: [Versions]
+      summary: Read a version
+      description: >-
+        Returns full version content, media references, and offers.
+        Supports the main flow (section 4, step 9).
+        Cross-cutting on every response: AC-18 (401), AC-19 (403), AC-20 (404 for a non-member),
+        AC-22 (problem contract), AC-23 (contract validation).
+      security:
+        - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - $ref: '#/components/parameters/XFlowIdHeader'
+      responses:
+        '200':
+          description: Version found.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductVersionResponse'
+              example:
+                id: 1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+                product_id: 8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+                version_number: 1
+                publication_status: PUBLISHED
+                name: Summer Tee
+                description: A lightweight cotton t-shirt.
+                category_id: 5b5c6d7e-8f9a-4b1c-9d2e-3f4a5b6c7d8e
+                media_references:
+                  - url: https://cdn.marketplace.example/products/summer-tee-front.jpg
+                    alt_text: Front view of the summer tee
+                    is_primary: true
+                    sort_order: 0
+                offers:
+                  - id: 6c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+                    product_variant_id: 2a2b3c4d-5e6f-4a5b-8c9d-0e1f2a3b4c5d
+                    sku: BLACK-S
+                    display_name: Black, Small
+                    price:
+                      amount: '19.9900'
+                      currency: USD
+                    sort_order: 0
+                    publication_status: PUBLISHED
+                created_at: '2026-09-14T08:10:00Z'
+                modified_at: '2026-09-14T09:00:00Z'
+                published_at: '2026-09-14T09:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    put:
+      operationId: replaceProductVersion
+      tags: [Versions]
+      summary: Replace a draft version's content and offers
+      description: >-
+        Fully replaces content, media references, and offers while the version is
+        `DRAFT`; offer ids stay stable per `product_variant_id`.
+        Requires a current `If-Match`.
+        The body's `product_id` must match the version's owning product; a mismatch
+        returns 409 ownership-mismatch.
+        Acceptance criteria: AC-06, AC-07, AC-08, AC-09.
+        Cross-cutting on every response: AC-18 (401), AC-19 (403), AC-20 (404 for a non-member),
+        AC-22 (problem contract), AC-23 (contract validation).
+      security:
+        - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - $ref: '#/components/parameters/XFlowIdHeader'
+        - $ref: '#/components/parameters/IfMatchRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplaceProductVersionRequest'
+            example:
+              product_id: 8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+              name: Summer Tee
+              description: A lightweight cotton t-shirt.
+              category_id: 5b5c6d7e-8f9a-4b1c-9d2e-3f4a5b6c7d8e
+              media_references:
+                - url: https://cdn.marketplace.example/products/summer-tee-front.jpg
+                  alt_text: Front view of the summer tee
+                  is_primary: true
+              offers:
+                - product_variant_id: 2a2b3c4d-5e6f-4a5b-8c9d-0e1f2a3b4c5d
+                  sku: BLACK-S
+                  display_name: Black, Small
+                  price:
+                    amount: '19.9900'
+                    currency: USD
+                  sort_order: 0
+      responses:
+        '200':
+          description: Content and offers replaced. AC-06.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductVersionResponse'
+              example:
+                id: 1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+                product_id: 8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+                version_number: 1
+                publication_status: DRAFT
+                name: Summer Tee
+                description: A lightweight cotton t-shirt.
+                category_id: 5b5c6d7e-8f9a-4b1c-9d2e-3f4a5b6c7d8e
+                media_references:
+                  - url: https://cdn.marketplace.example/products/summer-tee-front.jpg
+                    alt_text: Front view of the summer tee
+                    is_primary: true
+                    sort_order: 0
+                offers:
+                  - id: 6c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+                    product_variant_id: 2a2b3c4d-5e6f-4a5b-8c9d-0e1f2a3b4c5d
+                    sku: BLACK-S
+                    display_name: Black, Small
+                    price:
+                      amount: '19.9900'
+                      currency: USD
+                    sort_order: 0
+                    publication_status: DRAFT
+                created_at: '2026-09-14T08:10:00Z'
+                modified_at: '2026-09-14T08:30:00Z'
+                published_at: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: >-
+            The version is not `DRAFT` (invalid-status-operation), or the write
+            conflicts with a concurrent update (concurrent-modification). AC-07.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: 'urn:marketplace:problem:invalid-status-operation'
+                title: Invalid status operation
+                status: 409
+                detail: This operation is not permitted given the current status.
+                instance: /api/v1/product-versions/1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+                entity_type: product_version
+                current_status: IN_REVIEW
+        '412':
+          description: The supplied `If-Match` no longer matches the current entity tag. AC-08.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: 'urn:marketplace:problem:precondition-failed'
+                title: Precondition failed
+                status: 412
+                detail: The supplied If-Match value no longer matches the current entity tag.
+                instance: /api/v1/product-versions/1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+        '428':
+          description: The `If-Match` header was omitted. AC-08.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: 'urn:marketplace:problem:precondition-required'
+                title: Precondition required
+                status: 428
+                detail: This operation requires a current If-Match header.
+                instance: /api/v1/product-versions/1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    patch:
+      operationId: updateProductVersionPublicationStatus
+      tags: [Versions]
+      summary: Submit for review or publish a version
+      description: >-
+        Routes `publication_status` to submission for review (member) or publication
+        (`STORE_ADMIN` only).
+        Publication commits the version, its offers, and the product's published-version
+        pointer together.
+        The body's `product_id` must match the version's owning product; a mismatch
+        returns 409 ownership-mismatch.
+        Acceptance criteria: AC-10, AC-11, AC-12, AC-13, AC-14, AC-15, AC-17, AC-19, AC-21.
+        Cross-cutting on every response: AC-18 (401), AC-20 (404 for a non-member),
+        AC-22 (problem contract), AC-23 (contract validation).
+      security:
+        - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - $ref: '#/components/parameters/XFlowIdHeader'
+        - $ref: '#/components/parameters/IfMatchOptional'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/UpdatePublicationStatusRequest'
+            example:
+              product_id: 8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+              publication_status: IN_REVIEW
+      responses:
+        '200':
+          description: Publication status updated. AC-10, AC-14.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductVersionResponse'
+              example:
+                id: 1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+                product_id: 8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+                version_number: 1
+                publication_status: IN_REVIEW
+                name: Summer Tee
+                description: A lightweight cotton t-shirt.
+                category_id: 5b5c6d7e-8f9a-4b1c-9d2e-3f4a5b6c7d8e
+                media_references:
+                  - url: https://cdn.marketplace.example/products/summer-tee-front.jpg
+                    alt_text: Front view of the summer tee
+                    is_primary: true
+                    sort_order: 0
+                offers:
+                  - id: 6c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+                    product_variant_id: 2a2b3c4d-5e6f-4a5b-8c9d-0e1f2a3b4c5d
+                    sku: BLACK-S
+                    display_name: Black, Small
+                    price:
+                      amount: '19.9900'
+                      currency: USD
+                    sort_order: 0
+                    publication_status: IN_REVIEW
+                created_at: '2026-09-14T08:10:00Z'
+                modified_at: '2026-09-14T08:45:00Z'
+                published_at: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: >-
+            The principal lacks the platform `MERCHANT` role, or requests `PUBLISHED`
+            without `STORE_ADMIN` membership of the version's store. AC-19.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: 'urn:marketplace:problem:forbidden'
+                title: Forbidden
+                status: 403
+                detail: The caller is not permitted to perform this operation.
+                instance: /api/v1/product-versions/1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: >-
+            The version is outside the required source state, or the target status is
+            not `IN_REVIEW`/`PUBLISHED` given the current status (illegal-lifecycle-transition
+            or invalid-status-operation); an offer references a variant of another
+            product (ownership-mismatch); or the write conflicts with a concurrent
+            update (concurrent-modification). AC-12, AC-13, AC-17.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                illegalTransition:
+                  summary: Repeated or out-of-order transition
+                  value:
+                    type: 'urn:marketplace:problem:illegal-lifecycle-transition'
+                    title: Illegal lifecycle transition
+                    status: 409
+                    detail: The requested status is not reachable from the current status.
+                    instance: /api/v1/product-versions/1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+                    entity_type: product_version
+                    current_state: PUBLISHED
+                    attempted_action: publish
+                ownershipMismatch:
+                  summary: Offer references a variant of another product
+                  value:
+                    type: 'urn:marketplace:problem:ownership-mismatch'
+                    title: Ownership mismatch
+                    status: 409
+                    detail: A referenced entity does not belong to the expected parent.
+                    instance: /api/v1/product-versions/1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+                    child_type: product_variant
+                    parent_type: product
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          description: The version is not ready for the requested transition. AC-11.
+          headers:
+            X-Flow-ID:
+              $ref: '#/components/headers/XFlowId'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: 'urn:marketplace:problem:product-not-ready'
+                title: Product not ready
+                status: 422
+                detail: The version does not satisfy the requirements for this transition.
+                instance: /api/v1/product-versions/1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+                reason: NO_ACTIVE_VARIANT
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: >-
+        Development and test-only stub authentication.
+        Not permitted when the `prod` profile is active.
+        A production deployment MUST replace this scheme with a bearer token
+        issued by an identity provider before serving traffic.
+
+  headers:
+    Location:
+      description: Absolute or relative URI of the created or addressed resource.
+      schema:
+        type: string
+        format: uri-reference
+    ETag:
+      description: >-
+        Strong entity tag derived from the resource's row_version, used with
+        If-Match to detect lost updates.
+      schema:
+        type: string
+        example: '"3"'
+    XFlowId:
+      description: Correlation identifier for the request; echoes the received X-Flow-ID or a generated one.
+      schema:
+        type: string
+        format: uuid
+    RetryAfter:
+      description: Seconds to wait before retrying while the database is unreachable.
+      schema:
+        type: integer
+        example: 5
+    CacheControl:
+      description: Caching directive for a protected, user-specific read.
+      schema:
+        type: string
+        example: 'private, no-store'
+
+  parameters:
+    StoreId:
+      name: store_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Identifier of the owning store.
+    ProductId:
+      name: product_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Identifier of the addressed product.
+    ProductIdQuery:
+      name: product_id
+      in: query
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Identifier of the owning product; selects which product's versions are listed.
+    VariantId:
+      name: variant_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Identifier of the addressed product variant.
+    VersionId:
+      name: version_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Identifier of the addressed product version.
+    XFlowIdHeader:
+      name: X-Flow-ID
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+      description: Correlation identifier for the request; a value is generated when absent.
+    IfMatchRequired:
+      name: If-Match
+      in: header
+      required: true
+      schema:
+        type: string
+      description: >-
+        Entity tag read from a prior response. Required; a missing header returns
+        428 precondition-required and a stale value returns 412 precondition-failed.
+    IfMatchOptional:
+      name: If-Match
+      in: header
+      required: false
+      schema:
+        type: string
+      description: >-
+        Entity tag read from a prior response. Optional; when supplied, a stale
+        value returns 412 precondition-failed.
+    VariantStatusFilter:
+      name: status
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [ACTIVE, DISCONTINUED, ARCHIVED]
+      description: Restricts the page to variants with this status.
+    VersionPublicationStatusFilter:
+      name: publication_status
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [DRAFT, IN_REVIEW, REJECTED, PUBLISHED, SUPERSEDED, ARCHIVED]
+      description: Restricts the page to versions with this publication status.
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+      description: >-
+        Opaque page cursor from a previous page's pagination.next. Bound to the
+        effective filters and ordering; reuse with different filters or ordering
+        returns 400.
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Requested page size. A value outside 1-100 returns 400 rather than being clamped.
+    SortParam:
+      name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [created_at, -created_at]
+        default: created_at
+      description: Sort field and direction; '-' prefix means descending.
+
+  responses:
+    BadRequest:
+      description: The request is structurally invalid. AC-09.
+      headers:
+        X-Flow-ID:
+          $ref: '#/components/headers/XFlowId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: 'urn:marketplace:problem:validation-failed'
+            title: Request validation failed
+            status: 400
+            detail: One or more request fields are invalid.
+            instance: /api/v1/products/8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+            errors:
+              - code: REQUIRED
+                field: product_code
+                detail: product_code is required.
+    Unauthorized:
+      description: Credentials are missing or invalid. AC-18.
+      headers:
+        X-Flow-ID:
+          $ref: '#/components/headers/XFlowId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: 'urn:marketplace:problem:unauthenticated'
+            title: Unauthenticated
+            status: 401
+            detail: Valid credentials are required for this request.
+            instance: /api/v1/products/8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+    Forbidden:
+      description: The caller lacks the platform MERCHANT role. AC-19.
+      headers:
+        X-Flow-ID:
+          $ref: '#/components/headers/XFlowId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: 'urn:marketplace:problem:forbidden'
+            title: Forbidden
+            status: 403
+            detail: The caller is not permitted to perform this operation.
+            instance: /api/v1/products/8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+    NotFound:
+      description: >-
+        The resource does not exist, or the caller is not an active member of its
+        store. Existence is not revealed to a non-member. AC-20.
+      headers:
+        X-Flow-ID:
+          $ref: '#/components/headers/XFlowId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: 'urn:marketplace:problem:resource-not-found'
+            title: Resource not found
+            status: 404
+            detail: The requested resource does not exist.
+            instance: /api/v1/products/8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+    PreconditionFailed:
+      description: The supplied If-Match no longer matches the current entity tag. AC-08.
+      headers:
+        X-Flow-ID:
+          $ref: '#/components/headers/XFlowId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: 'urn:marketplace:problem:precondition-failed'
+            title: Precondition failed
+            status: 412
+            detail: The supplied If-Match value no longer matches the current entity tag.
+            instance: /api/v1/product-versions/1c1b2a3d-4e5f-4a5b-8c9d-0e1f2a3b4c5d
+    ServiceUnavailable:
+      description: A required dependency is temporarily unavailable. AC-29.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+        X-Flow-ID:
+          $ref: '#/components/headers/XFlowId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: 'urn:marketplace:problem:service-unavailable'
+            title: Service unavailable
+            status: 503
+            detail: A required dependency is temporarily unavailable. Retry later.
+            instance: /api/v1/products/8f14e45f-ceea-4c5c-a8c2-1a2b3c4d5e6f
+
+  schemas:
+    Money:
+      type: object
+      required: [amount, currency]
+      additionalProperties: false
+      properties:
+        amount:
+          type: string
+          pattern: '^\d{1,15}(\.\d{1,4})?$'
+          description: >-
+            Non-negative decimal amount, precision 19 and scale 4, serialized as a
+            string to avoid floating-point rounding.
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 three-letter uppercase currency code.
+
+    Pagination:
+      type: object
+      required: [self]
+      additionalProperties: false
+      properties:
+        self:
+          type: string
+          format: uri
+          description: Absolute URL of the current page, repeating the effective filters, sort, and limit.
+        next:
+          type: string
+          format: uri
+          description: Absolute URL of the next page. Omitted when no later page exists.
+
+    ValidationError:
+      type: object
+      required: [code, field, detail]
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          description: Stable, machine-readable violation code.
+        field:
+          type: string
+          description: Name of the invalid request field.
+        detail:
+          type: string
+          description: Safe, human-readable explanation.
+
+    Problem:
+      type: object
+      required: [type, title, status, detail, instance]
+      additionalProperties: false
+      description: >-
+        RFC 9457 Problem Details. Extension properties are populated according to
+        the `type` value; see the specification's error contract table.
+      properties:
+        type:
+          type: string
+          pattern: '^urn:marketplace:problem:[a-z][a-z0-9-]*$'
+          description: Stable problem type URI.
+        title:
+          type: string
+          description: Short, stable summary of the problem type.
+        status:
+          type: integer
+          description: HTTP status code, repeated from the response.
+        detail:
+          type: string
+          description: Fixed, safe, human-readable explanation. Never a raw exception message.
+        instance:
+          type: string
+          description: The request path that produced the problem.
+        errors:
+          type: array
+          description: Present on validation-failed (400) problems; one entry per violation.
+          items:
+            $ref: '#/components/schemas/ValidationError'
+        entity_type:
+          type: string
+          description: Present on illegal-lifecycle-transition and invalid-status-operation problems.
+        current_state:
+          type: string
+          description: Present on illegal-lifecycle-transition problems.
+        attempted_action:
+          type: string
+          description: Present on illegal-lifecycle-transition problems.
+        current_status:
+          type: string
+          description: Present on invalid-status-operation problems.
+        child_type:
+          type: string
+          description: Present on ownership-mismatch problems.
+        parent_type:
+          type: string
+          description: Present on ownership-mismatch problems.
+        reason:
+          type: string
+          description: Present on product-not-ready (422) problems; the ProductReadinessFailure code.
+        field:
+          type: string
+          description: Present on duplicate-resource (409) problems.
+
+    CreateProductRequest:
+      type: object
+      required: [product_code]
+      additionalProperties: false
+      properties:
+        product_code:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+
+    UpdateProductStatusRequest:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, DISCONTINUED, ARCHIVED]
+
+    CreateVariantRequest:
+      type: object
+      required: [variant_code]
+      additionalProperties: false
+      properties:
+        variant_code:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+
+    InitializeInventoryRequest:
+      type: object
+      required: [quantity_on_hand, reorder_level]
+      additionalProperties: false
+      properties:
+        quantity_on_hand:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        reorder_level:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+
+    CreateProductVersionRequest:
+      type: object
+      required: [product_id]
+      additionalProperties: false
+      description: Identifies the owning product; no other client-supplied fields are accepted in this phase.
+      properties:
+        product_id:
+          type: string
+          format: uuid
+
+    MediaReferenceRequest:
+      type: object
+      required: [url, is_primary]
+      additionalProperties: false
+      description: At most one entry within a request's media_references array may set is_primary to true.
+      properties:
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+        alt_text:
+          type: ['string', 'null']
+          maxLength: 500
+        is_primary:
+          type: boolean
+
+    OfferRequest:
+      type: object
+      required: [product_variant_id, sort_order]
+      additionalProperties: false
+      description: product_variant_id must be unique within a request's offers array.
+      properties:
+        product_variant_id:
+          type: string
+          format: uuid
+        sku:
+          type: ['string', 'null']
+          maxLength: 100
+        display_name:
+          type: ['string', 'null']
+          maxLength: 255
+        price:
+          oneOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+        sort_order:
+          type: integer
+          minimum: 0
+
+    ReplaceProductVersionRequest:
+      type: object
+      required: [product_id]
+      additionalProperties: false
+      description: product_id must match the addressed version's owning product; a mismatch returns 409 ownership-mismatch.
+      properties:
+        product_id:
+          type: string
+          format: uuid
+        name:
+          type: ['string', 'null']
+          maxLength: 255
+        description:
+          type: ['string', 'null']
+          maxLength: 20000
+        category_id:
+          type: ['string', 'null']
+          format: uuid
+        media_references:
+          type: array
+          maxItems: 20
+          default: []
+          items:
+            $ref: '#/components/schemas/MediaReferenceRequest'
+        offers:
+          type: array
+          maxItems: 100
+          default: []
+          items:
+            $ref: '#/components/schemas/OfferRequest'
+
+    UpdatePublicationStatusRequest:
+      type: object
+      required: [product_id, publication_status]
+      additionalProperties: false
+      description: product_id must match the addressed version's owning product; a mismatch returns 409 ownership-mismatch.
+      properties:
+        product_id:
+          type: string
+          format: uuid
+        publication_status:
+          type: string
+          enum: [DRAFT, IN_REVIEW, REJECTED, PUBLISHED, SUPERSEDED, ARCHIVED]
+          description: >-
+            Only IN_REVIEW and PUBLISHED are accepted by this operation now.
+            The remaining values are reserved for later lifecycle slices and
+            return 400 validation-failed if requested.
+
+    ProductResponse:
+      type: object
+      required: [id, store_id, product_code, status, current_published_version_id, created_at, modified_at]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        store_id:
+          type: string
+          format: uuid
+        product_code:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, DISCONTINUED, ARCHIVED]
+        current_published_version_id:
+          type: ['string', 'null']
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        modified_at:
+          type: string
+          format: date-time
+
+    VariantResponse:
+      type: object
+      required: [id, product_id, variant_code, status, created_at, modified_at]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        variant_code:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, DISCONTINUED, ARCHIVED]
+        created_at:
+          type: string
+          format: date-time
+        modified_at:
+          type: string
+          format: date-time
+
+    VariantPageResponse:
+      type: object
+      required: [variants, pagination]
+      additionalProperties: false
+      properties:
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/VariantResponse'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    InventoryResponse:
+      type: object
+      required: [product_variant_id, quantity_on_hand, quantity_reserved, reorder_level, status]
+      additionalProperties: false
+      properties:
+        product_variant_id:
+          type: string
+          format: uuid
+        quantity_on_hand:
+          type: integer
+        quantity_reserved:
+          type: integer
+        reorder_level:
+          type: integer
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, ARCHIVED]
+
+    MediaReferenceResponse:
+      type: object
+      required: [url, alt_text, is_primary, sort_order]
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          format: uri
+        alt_text:
+          type: ['string', 'null']
+        is_primary:
+          type: boolean
+        sort_order:
+          type: integer
+
+    OfferResponse:
+      type: object
+      required: [id, product_variant_id, sku, display_name, price, sort_order, publication_status]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_variant_id:
+          type: string
+          format: uuid
+        sku:
+          type: ['string', 'null']
+        display_name:
+          type: ['string', 'null']
+        price:
+          oneOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+        sort_order:
+          type: integer
+        publication_status:
+          type: string
+          enum: [DRAFT, IN_REVIEW, REJECTED, PUBLISHED, SUPERSEDED, ARCHIVED]
+
+    ProductVersionResponse:
+      type: object
+      required:
+        - id
+        - product_id
+        - version_number
+        - publication_status
+        - name
+        - description
+        - category_id
+        - media_references
+        - offers
+        - created_at
+        - modified_at
+        - published_at
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        version_number:
+          type: integer
+        publication_status:
+          type: string
+          enum: [DRAFT, IN_REVIEW, REJECTED, PUBLISHED, SUPERSEDED, ARCHIVED]
+        name:
+          type: ['string', 'null']
+        description:
+          type: ['string', 'null']
+        category_id:
+          type: ['string', 'null']
+          format: uuid
+        media_references:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaReferenceResponse'
+        offers:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfferResponse'
+        created_at:
+          type: string
+          format: date-time
+        modified_at:
+          type: string
+          format: date-time
+        published_at:
+          type: ['string', 'null']
+          format: date-time
+
+    ProductVersionSummaryResponse:
+      type: object
+      required: [id, product_id, version_number, publication_status, created_at, modified_at, published_at]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        version_number:
+          type: integer
+        publication_status:
+          type: string
+          enum: [DRAFT, IN_REVIEW, REJECTED, PUBLISHED, SUPERSEDED, ARCHIVED]
+        created_at:
+          type: string
+          format: date-time
+        modified_at:
+          type: string
+          format: date-time
+        published_at:
+          type: ['string', 'null']
+          format: date-time
+
+    ProductVersionPageResponse:
+      type: object
+      required: [versions, pagination]
+      additionalProperties: false
+      properties:
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductVersionSummaryResponse'
+        pagination:
+          $ref: '#/components/schemas/Pagination'

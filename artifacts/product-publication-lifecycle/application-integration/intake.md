@@ -116,7 +116,7 @@ Two items are verifications rather than decisions, listed in the specification's
 
 ## User Approval
 
-- [ ] I confirm the goal and scope.
-- [ ] I confirm the success criteria.
-- [ ] I confirm the main flow and critical extreme cases.
-- [ ] The agent may create the detailed feature specification.
+- [x] I confirm the goal and scope.
+- [x] I confirm the success criteria.
+- [x] I confirm the main flow and critical extreme cases.
+- [x] The agent may create the detailed feature specification.
